@@ -1,0 +1,4 @@
+Install Material-UI Core:
+npm install @mui/material @emotion/react @emotion/styled
+Install Material-UI Icons (Optional, but often used with MUI components):
+npm install @mui/icons-material

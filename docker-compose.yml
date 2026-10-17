@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    # ports:
+    #   - "5432:5432"          # expose Postgres to host
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fullstack-net
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "9012:9012"
+    environment:
+    ########################################
+      # DEVELOPMENT SETTINGS
+      ########################################
+      # NODE_ENV: development
+      # PORT: 9012
+      # CLIENT_ORIGIN: http://localhost:3000
+      # TOKEN_SECRET: dileepltts_dev_secret_change_me
+      # REFRESH_TOKEN_SECRET: dileepltts_refresh_secret_change_me
+      # EMAIL_USER: tempmailmahesh@gmail.com
+      # EMAIL_PASS: ydzluwrjuqtmxeui
+      # EMAIL_FROM: WedsMutual <tempmailmahesh@gmail.com>
+      # PGHOST: db
+      # PGPORT: 5432
+      # PGUSER: postgres
+      # PGPASSWORD: postgres
+      # PGDATABASE: postgres
+      ########################################
+      # PRODUCTION SETTINGS
+      ########################################
+      NODE_ENV: development
+      PORT: 9012
+      CLIENT_ORIGIN: http://201.18.192.223 # or https://yourdomain.com
+      TOKEN_SECRET: replace_with_strong_random_string
+      REFRESH_TOKEN_SECRET: replace_with_strong_random_string
+      EMAIL_USER: tempmailmahesh@gmail.com
+      EMAIL_PASS: ydzluwrjuqtmxeui
+      EMAIL_FROM: WedsMutual <tempmailmahesh@gmail.com>
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - fullstack-net
+
+  frontend:
+    build: ./fe_token
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - fullstack-net
+
+networks:
+  fullstack-net:
+    driver: bridge
+
+volumes:
+  pgdata:
