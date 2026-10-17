@@ -1,0 +1,10 @@
+# Environment files (contain secrets)
+.env
+backend/src/.env
+fe_token/.env
+
+# Dependencies
+**/node_modules
+
+# Git worktrees
+.worktrees/

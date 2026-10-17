@@ -21,16 +21,13 @@ router.post('/refresh',  myController.refresh);
 router.post('/logout',   myController.logout);
 
 // ─── Protected User APIs ──────────────────────────────────────────────────────
-// router.get('/getAllUsers',                     auth, mydbController.getAllUsers);//removed auth for testing 1
-// ── NEW: Public routes — no token needed ─────────────────────────────────────
-router.get('/getAllUsers',       mydbController.getAllUsers);        // ← after above removed auth adde this 2
-router.post('/getPublicProfile', mydbController.getPublicProfile) //add this for public profile access without auth 3
+router.get('/getAllUsers',       auth, mydbController.getAllUsers);
+router.post('/getPublicProfile', auth, mydbController.getPublicProfile);
 router.post('/getUserById',                   auth, mydbController.getUserById);
 router.post('/uploadUserGallery',             auth, mydbController.uploadProfileImages);
 router.post('/deleteGalleryRecord',           auth, mydbController.DeleteUserGalleryRecord);
 router.post('/updateUserRecords',             auth, mydbController.updateUserRecords);
-// router.post('/GetUserGallery',                auth, mydbController.GetUserGallery);
-router.post('/GetUserGallery',                 mydbController.GetUserGallery);
+router.post('/GetUserGallery',                auth, mydbController.GetUserGallery);
 router.post('/FetchUserDetails',              auth, mydbController.FetchAllUserDetails);
 router.post('/Fetchlistdata',                 auth, mydbController.Fetchlistdata);
 router.post('/getUserRecords',                auth, mydbController.getUserRecords);

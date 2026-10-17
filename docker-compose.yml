@@ -3,9 +3,9 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
     # ports:
     #   - "5432:5432"          # expose Postgres to host
     volumes:
@@ -46,16 +46,16 @@ services:
       NODE_ENV: development
       PORT: 9012
       CLIENT_ORIGIN: http://201.18.192.223 # or https://yourdomain.com
-      TOKEN_SECRET: replace_with_strong_random_string
-      REFRESH_TOKEN_SECRET: replace_with_strong_random_string
-      EMAIL_USER: tempmailmahesh@gmail.com
-      EMAIL_PASS: ydzluwrjuqtmxeui
-      EMAIL_FROM: WedsMutual <tempmailmahesh@gmail.com>
+      TOKEN_SECRET: ${TOKEN_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
       PGHOST: db
       PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: postgres
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE}
     depends_on:
       db:
         condition: service_healthy

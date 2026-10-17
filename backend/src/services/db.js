@@ -1,4 +1,4 @@
-const { convertCredentials } = require('./passwordfunction');
+const { convertCredentials, hashPassword } = require('./passwordfunction');
 const pool = require('./pool');
 var format = require('pg-format');
 
@@ -12,7 +12,7 @@ const register = async (dataToSave) => {
       return false;
     } else {
 
-      let encryptedPassword = await convertCredentials(dataToSave, true);
+      let encryptedPassword = await hashPassword(dataToSave.upassword);
       dataToSave.upassword = encryptedPassword;
       saveObjectsToDatabase(dataToSave);
       return true;
@@ -30,9 +30,7 @@ async function ValidateUser(dataToSave) {
       text: 'select * from users WHERE uemail = $1 OR uphone = $2',
       values: [dataToSave.uemail, dataToSave.uphone],
     };
-    console.log(query)
     const res = await client1.query(query);
-    console.log('Query result:', res.rows);
     // Close the connection
     client1.release(); // Use release() instead of end() to return the client to the pool
     return res.rows;
@@ -119,9 +117,7 @@ const GetUserById = async (data) => {
       text: 'select * from users WHERE uid = $1',
       values: [data],
     };
-    console.log(query)
     const res = await client4.query(query);
-    console.log('Query result:', res.rows);
     // Close the connection
     client4.release(); // Use release() instead of end() to return the client to the pool
     return res.rows;
@@ -138,9 +134,7 @@ const GetUserDetails = async (data) => {
       text: 'select * from users WHERE uemail = $1',
       values: [data],
     };
-    console.log(query)
     const res = await client2.query(query);
-    console.log('Query result:', res.rows);
     // Close the connection
     client2.release(); // Use release() instead of end() to return the client to the pool
     return res.rows;
@@ -173,8 +167,7 @@ const SaveUserGallery = async (list) => {
     );
 
     const res = await client.query(query);
-    console.log('Gallery saved to DB:', res.rows);
-    
+
     client.release(); 
     return res.rows;
   } catch (error) {
@@ -248,10 +241,7 @@ const GetUserDetailsById = async (uid) => {
       values: [uid],
     };
 
-    console.log("query super ")
-
     const res = await client4.query(query);
-    console.log('Query result:', res.rows);
 
     // Close the connection
     client4.release(); // Use release() instead of end() to return the client to the pool
@@ -350,10 +340,7 @@ const FetchAllUserDetails = async (data) => {
       values: [data],
     };
 
-    console.log(query)
-
     const res = await client4.query(query);
-    console.log('Query result:', res.rows);
 
     // Close the connection
     client4.release(); // Use release() instead of end() to return the client to the pool
@@ -577,9 +564,6 @@ const dataText = `
 
     const dataValues = params.concat([l, offset]);
 
-    console.log('Query:', dataText);
-    console.log('Params:', dataValues);
-
     const [dataRes, countRes] = await Promise.all([
       client.query({ text: dataText, values: dataValues }),
       client.query({ text: countText, values: countValues })
@@ -607,7 +591,6 @@ const getAllUserDetails = async () => {
       text: 'select * from userdetails'
     };
     const res = await client3.query(query);
-    console.log('Query result:', res.rows);
     // Close the connection
     client3.release(); // Use release() instead of end() to return the client to the pool
     return res.rows;
@@ -770,6 +753,17 @@ const updateUserPassword = async (uid, newEncryptedPassword) => {
     client.release();
   }
 };
+
+// Lazy-migration helper: rewrite the stored password for a user after a
+// successful legacy (AES) login so the credential becomes a bcrypt hash.
+const updateUserPasswordById = async (uid, newHash) => {
+  const client = await pool.connect();
+  try {
+    await client.query('UPDATE users SET upassword = $1 WHERE uid = $2', [newHash, uid]);
+  } finally {
+    client.release();
+  }
+};
 //close account
 // ─── Close Account ────────────────────────────────────────────────────────────
 const closeAccount = async (uid) => {
@@ -922,6 +916,7 @@ module.exports.updatePasswordByEmail = updatePasswordByEmail;
 module.exports.closeAccount = closeAccount;
 module.exports.getUserPassword    = getUserPassword;
 module.exports.updateUserPassword = updateUserPassword;
+module.exports.updateUserPasswordById = updateUserPasswordById;
 module.exports.saveOtp   = saveOtp;
 module.exports.verifyOtp = verifyOtp;
 //end registeration

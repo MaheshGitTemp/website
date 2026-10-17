@@ -1,6 +1,6 @@
  
 const prepareDBData = require('../services/db');
-const { convertCredentials } = require('../services/passwordfunction');
+const { convertCredentials, verifyPassword, hashPassword } = require('../services/passwordfunction');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -56,9 +56,20 @@ exports.login = async (req, res) => {
       });
     }
 
-    const decryptedPassword = await convertCredentials(userobj, false);
-    if (data.upassword !== decryptedPassword || data.uemail !== userobj[0].uemail) {
+    const result = await verifyPassword(data.upassword, userobj[0].upassword);
+    if (!result.ok || data.uemail !== userobj[0].uemail) {
       return res.status(401).json({ status: 'Failure', result: 'Invalid Credentials.' });
+    }
+
+    // Lazy migration: on a successful legacy (AES) match, re-hash the submitted
+    // plaintext with bcrypt and persist it. Never block/fail login if this errors.
+    if (result.legacy) {
+      try {
+        const newHash = await hashPassword(data.upassword);
+        await prepareDBData.updateUserPasswordById(userobj[0].uid, newHash);
+      } catch (e) {
+        console.warn('Lazy password migration failed for uid', userobj[0].uid, e.message);
+      }
     }
 
     const tokenPayload = {
