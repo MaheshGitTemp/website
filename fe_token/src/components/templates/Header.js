@@ -7,7 +7,7 @@ import profiles from "../templates/ImagesLoader";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from '../hooks/AuthContext';
 import "./dropdown.css";
-import { imageUrl } from '../../utils/imageUrl';
+import { imageUrl, approvedProfileImage } from '../../utils/imageUrl';
 
 // import api from '../../utils/api';
 import { fetchUserDetails, fetchUserGallery } from '../../services/userService';
@@ -47,9 +47,27 @@ const Header = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // On mobile the logged-in usernav is a horizontal flex row (bell / hamburger /
+  // language sit inline on the right); on desktop keep the original inline-block.
   const usernavLiStyle = isMobile
-    ? { display: 'block', marginLeft: '0' }
+    ? { listStyle: 'none', margin: 0, position: 'relative' }
     : { display: 'inline-block', marginLeft: '5px' };
+
+  // Identical fixed-size box for each of the three action icons (bell / account /
+  // language) so they share the same footprint and vertical centering. This keeps
+  // the icons visually consistent and makes their dropdowns anchor evenly.
+  const iconBoxStyle = {
+    position: 'relative',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '40px',
+    height: '40px',
+    fontSize: '18px',
+    lineHeight: 1,
+    padding: 0,
+    margin: 0, // override .usernav > li.notification > a { margin-right:15px } so gaps stay even
+  };
 
   // ─── Close on outside click ───────────────────────────────────────────────
   const headerRef = useRef(null);
@@ -63,6 +81,21 @@ const Header = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // ─── Fixed-header spacer: match spacer height to the real header height ────
+  // The header is position:fixed (out of flow), so a spacer below it reserves
+  // the space. We measure the actual rendered height (it can differ from a
+  // hardcoded guess once the logo/tagline/buttons wrap) so the menu bar that
+  // follows never slides under the header.
+  const [headerHeight, setHeaderHeight] = useState(78);
+  useEffect(() => {
+    const measure = () => {
+      if (headerRef.current) setHeaderHeight(headerRef.current.offsetHeight);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [loginuser]); // re-measure when auth state changes the header contents
 
   // ─── User profile ─────────────────────────────────────────────────────────
   const [userDetails, setUserDetails] = useState({});
@@ -86,11 +119,13 @@ const Header = () => {
     load();
   }, []); // ✅ empty deps — runs once only
 
-  // const profilePic = getGallery.find(img => img.isprofile)?.imagepath || profiles.authorimg;
-  // ✅ Use thumbnail for fast loading, fallback to original, then default avatar
+  // ✅ Use thumbnail for fast loading, fallback to original, then default avatar.
+  // Only show the profile image if it is APPROVED (the owner's own gallery can
+  // include pending/rejected images, which must not appear as the avatar).
+  const approvedProfile = approvedProfileImage(getGallery);
 const profilePic = imageUrl(
-  getGallery.find(img => img.isprofile)?.imagepath_thumb 
-  || getGallery.find(img => img.isprofile)?.imagepath
+  approvedProfile?.imagepath_thumb
+  || approvedProfile?.imagepath
 ) || profiles.authorimg;
 
   // ─── Navbar ───────────────────────────────────────────────────────────────
@@ -268,7 +303,7 @@ const profilePic = imageUrl(
             {name}
           </a> */}
           <Link
-  to={`/ProfileDetails/${sender_id}`}   // ← sender_id from the notification data
+  to="/dashboard"                                 // ← clicking a proposal opens the full list
   onClick={() => setIsNotificationVisible(false)}  // ← closes bell dropdown
   style={{ color: '#a84040', fontWeight: 'bold', textDecoration: 'none' }}
 >
@@ -320,7 +355,7 @@ const profilePic = imageUrl(
             {name}
           </a> */}
           <Link
-  to={`/ProfileDetails/${receiver_id}`}  // ← receiver_id from the response data
+  to="/dashboard"                                 // ← clicking a proposal opens the full list
   onClick={() => setIsNotificationVisible(false)}  // ← closes bell dropdown
   style={{ color: '#a84040', fontWeight: 'bold', textDecoration: 'none' }}
 >
@@ -351,6 +386,18 @@ const profilePic = imageUrl(
     ...responseNotifs.map(n => ({ ...n, _type: 'response' }))
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+  // Show at most 10 in the bell dropdown; the rest are reachable via the
+  // "View all proposals" link that opens the full dashboard list.
+  const NOTIF_PREVIEW_LIMIT = 10;
+  const visibleNotifications = allNotifications.slice(0, NOTIF_PREVIEW_LIMIT);
+
+  // Navigate to the full proposals list (dashboard) and close the dropdown.
+  const goToAllProposals = (e) => {
+    if (e) e.preventDefault();
+    setIsNotificationVisible(false);
+    navigate('/dashboard');
+  };
+
   // ─── Shared item style ────────────────────────────────────────────────────
   const itemStyle = {
     padding:      '10px 15px',
@@ -363,42 +410,120 @@ const profilePic = imageUrl(
   // =========================================================================
   return (
     <>
-      <div className="header-wrap" ref={headerRef}>
+      {/* Spacer offsets the fixed header so page content isn't hidden behind it.
+          Height is measured from the real header so the menu bar can't overlap. */}
+      <div style={{ height: `${headerHeight}px` }} aria-hidden="true" />
+
+      <div
+        className="header-wrap"
+        ref={headerRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          background: '#fff',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+          borderBottom: '1px solid #eee'
+        }}
+      >
         <div className="container">
-          <div className="row">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: isMobile ? '8px' : '16px',
+              minHeight: '78px',
+              flexWrap: 'nowrap'
+            }}
+          >
 
-            <div className="col-lg-4 col-md-4">
-              <div className="logo"> <Link to="/">
-               
-                  {/* <img src={profiles.logo} alt="Logo" /> */}
-                  <img src={imageUrl("/uploads/gallery/telugu_sambandham_navbar_v14.png")} alt="Logo" />
+            {/* ── Logo (left) ── */}
+            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+              <img
+                src={imageUrl("/uploads/gallery/telugu_sambandham_navbar_v16.png")}
+                alt="Logo"
+                style={{ height: isMobile ? '40px' : '52px', width: 'auto', display: 'block' }}
+              />
+            </Link>
 
-               </Link>
-              </div>
+            {/* ── Tagline (center on mobile, beside logo on desktop) ── */}
+            <div
+              style={{
+                lineHeight: 1.2,
+                minWidth: 0,
+                flex: isMobile ? 1 : 'initial',
+                textAlign: isMobile ? 'center' : 'left',
+                borderLeft: isMobile ? 'none' : '2px solid #eee',
+                paddingLeft: isMobile ? 0 : '14px',
+                marginRight: isMobile ? 0 : 'auto'
+              }}
+            >
+              {isMobile ? (
+                // Compact centered tagline for mobile
+                <>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>
+                    Trusted Matrimony
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#8B0000' }}>
+                    Viswabrahmin
+                  </div>
+                  <div style={{ fontSize: '8px', letterSpacing: '2px', color: '#999', textTransform: 'uppercase' }}>
+                    Community
+                  </div>
+                </>
+              ) : (
+                <div style={{ whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#333' }}>
+                    Trusted Matrimony
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#555' }}>
+                    For <strong style={{ color: '#8B0000', fontWeight: 700 }}>Viswabrahmin</strong>
+                  </div>
+                  <div style={{ letterSpacing: '3px', fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
+                    Community
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="col-lg-3 col-md-5" >
-           <div class="active-profile" style={{fontSize: '13px', lineHeight: '1.5', textAlign: 'center', margin: '0', padding: '0', whiteSpace: 'nowrap'}}>
-  Trusted Matrimony 
-  <span>For <strong style={{color: '#8B0000', fontSize: '14px', fontWeight: '700'}}>Viswabrahmin</strong></span>
-  <span style={{display: 'block', letterSpacing: '3px', fontSize: '10px', color: '#888', textTransform: 'uppercase'}}>Community</span>
-</div>
- 
-
-            </div>
-
-            <div className="col-lg-5 col-md-3">
-              <div className="usertoplinks">
+            <div className="usertoplinks" style={{ marginLeft: isMobile ? 0 : 'auto', flexShrink: 0 }}>
 
                 {/* Guest */}
                 {!loginuser && (
-                  <ul className="usernav">
-                    <li style={usernavLiStyle}>
-                      <Link to="/login"><i className="fas fa-sign-in-alt"></i> Login</Link>
+                  <ul className="usernav" style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px', margin: 0, padding: 0, listStyle: 'none' }}>
+                    <li style={{ listStyle: 'none' }}>
+                      <Link
+                        to="/login"
+                        aria-label="Login"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                          padding: isMobile ? '9px 14px' : '9px 20px', borderRadius: '8px',
+                          border: '1.5px solid #a84040', color: '#a84040',
+                          fontWeight: 600, fontSize: '14px', textDecoration: 'none',
+                          background: '#fff', transition: 'all 0.15s', whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <i className="fas fa-sign-in-alt"></i>{!isMobile && ' Login'}
+                      </Link>
                     </li>
-                    <li style={usernavLiStyle}>
-                      <Link to="/signup" className="reg">
-                        <i className="far fa-user"></i> Signup
+                    <li style={{ listStyle: 'none' }}>
+                      <Link
+                        to="/signup"
+                        className="reg"
+                        aria-label="Signup"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                          padding: isMobile ? '9px 16px' : '9px 20px', borderRadius: '8px',
+                          border: '1.5px solid #a84040', color: '#fff',
+                          fontWeight: 600, fontSize: '14px', textDecoration: 'none',
+                          background: '#a84040', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                          boxShadow: '0 2px 8px rgba(168,64,64,0.25)'
+                        }}
+                      >
+                        <i className="far fa-user"></i>{isMobile ? ' Join' : ' Signup'}
                       </Link>
                     </li>
                   </ul>
@@ -406,7 +531,12 @@ const profilePic = imageUrl(
 
                 {/* Logged in */}
                 {loginuser && (
-                  <ul className="usernav">
+                  <ul
+                    className="usernav"
+                    style={isMobile
+                      ? { display: 'flex', alignItems: 'center', gap: '10px', margin: 0, padding: 0, listStyle: 'none' }
+                      : undefined}
+                  >
 
                     {/* ── Bell ── */}
                     <li style={usernavLiStyle} className="dropdown notification">
@@ -414,7 +544,7 @@ const profilePic = imageUrl(
                         href="#"
                         onClick={(e) => { e.preventDefault(); toggleNotification(); }}
                         className="nav-link dropdown-toggle"
-                        style={{ position: 'relative', display: 'inline-block' }}
+                        style={iconBoxStyle}
                       >
                         <i className="far fa-bell"></i>
                         {unreadCount > 0 && (
@@ -430,12 +560,17 @@ const profilePic = imageUrl(
                         )}
                       </a>
 
-                      {/* Bell dropdown */}
+                      {/* Bell dropdown.
+                          Desktop keeps the inline minWidth:300px. On mobile we drop
+                          the inline minWidth so the style.css mobile media query can
+                          shrink the dropdown (inline styles would otherwise override
+                          the stylesheet width). */}
                       <ul
                         className="dropdown-menu dropdown-menu-right animate slideIn"
                         style={{
                           display: isNotificationVisible ? 'block' : 'none',
-                          minWidth: '300px', maxHeight: '450px', overflowY: 'auto',
+                          ...(isMobile ? {} : { minWidth: '300px' }),
+                          maxHeight: '450px', overflowY: 'auto',
                           padding: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                           border: '1px solid #eee', borderRadius: '6px',
                         }}
@@ -480,22 +615,47 @@ const profilePic = imageUrl(
                           </li>
                         )}
 
-                        {/* All notifications merged and sorted by date */}
-                        {!notifLoading && !notifError && allNotifications.map(n =>
+                        {/* Notifications merged and sorted by date — limited to 10 */}
+                        {!notifLoading && !notifError && visibleNotifications.map(n =>
                           n._type === 'received'
                             ? renderReceivedItem(n)
                             : renderResponseItem(n)
                         )}
 
+                        {/* View all proposals — opens the full list on the dashboard */}
+                        {!notifLoading && !notifError && allNotifications.length > 0 && (
+                          <li style={{
+                            padding: '12px 15px', textAlign: 'center',
+                            borderTop: '1px solid #eee', background: '#fafafa',
+                            listStyle: 'none', position: 'sticky', bottom: 0,
+                          }}>
+                            <a
+                              href="/dashboard"
+                              onClick={goToAllProposals}
+                              style={{ color: '#a84040', fontWeight: 'bold', fontSize: '13px', textDecoration: 'none' }}
+                            >
+                              View all proposals <i className="fas fa-arrow-right" style={{ fontSize: '11px' }}></i>
+                            </a>
+                          </li>
+                        )}
+
                       </ul>
                     </li>
 
-                    {/* ── User dropdown ── */}
+                    {/* ── User dropdown (icon box on mobile, user+name on desktop) ── */}
                     <li style={usernavLiStyle} className="dropdown">
                       <a href="#" onClick={(e) => { e.preventDefault(); toggleDropdown(); }}
-                        className="nav-link dropdown-toggle">
-                        <i className="far fa-user"></i>{' '}
-                        <span>{userDetails.ufname || 'Me'}</span>
+                        className="nav-link dropdown-toggle"
+                        aria-label="User menu"
+                        style={isMobile ? iconBoxStyle : undefined}>
+                        {isMobile ? (
+                          <i className="fas fa-bars"></i>
+                        ) : (
+                          <>
+                            <i className="far fa-user"></i>{' '}
+                            <span>{userDetails.ufname || 'Me'}</span>
+                          </>
+                        )}
                       </a>
                       <ul className="dropdown-menu dropdown-menu-right animate slideIn"
                         style={{ display: isDropdownVisible ? 'block' : 'none' }}>
@@ -564,8 +724,10 @@ const profilePic = imageUrl(
 
                     {/* ── Language ── */}
                     <li style={usernavLiStyle} className="dropdown lang">
-                      <a href="#" className="nav-link" onClick={e => e.preventDefault()}>
-                        <i className="fas fa-globe"></i> <span></span>
+                      <a href="#" className="nav-link" onClick={e => e.preventDefault()}
+                        aria-label="Language"
+                        style={isMobile ? iconBoxStyle : undefined}>
+                        <i className="fas fa-globe"></i>{!isMobile && <span></span>}
                       </a>
                       <ul className="dropdown-menu dropdown-menu-right animate slideIn">
                         <li className="nav-item"><a href="#" className="nav-link">English</a></li>
@@ -576,39 +738,46 @@ const profilePic = imageUrl(
 
                   </ul>
                 )}
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Navbar */}
+      {/* Navbar — hidden for guests, shown only when logged in */}
+      {loginuser && (
       <nav className="navbar navbar-expand-lg navbar-dark">
         <div className="container">
           <a className="navbar-brand" href="#" onClick={e => e.preventDefault()}>
             {isActive ? "Menu" : ""}
           </a>
-          <button onClick={() => setIsActive(p => !p)} className="navbar-toggler" type="button">
-            <span className="navbar-toggler-icon"></span>
+          <button
+            onClick={() => setIsActive(p => !p)}
+            className="navbar-toggler"
+            type="button"
+            aria-label={isActive ? 'Collapse menu' : 'Expand menu'}
+            aria-expanded={isActive}
+          >
+            {/* Arrow toggles the sidebar: up = expanded (collapse it),
+                down = collapsed (expand it). Replaces the hamburger icon. */}
+            <i className={isActive ? 'fas fa-chevron-up' : 'fas fa-chevron-down'}
+               style={{ color: '#fff', fontSize: '18px' }}></i>
           </button>
           <div className={isActive ? 'collapse navbar-collapse show' : 'collapse navbar-collapse'}>
             <ul className="navbar-nav mr-auto">
               <li className="nav-item">
                 <Link to="/profiles" className="nav-link">Matches</Link>
               </li>
-                {!loginuser && (  <li className="nav-item">
-                <Link to="/login" className="nav-link">Advanced Search</Link>
-              </li>)}
-               {loginuser && (  <li className="nav-item">
+               <li className="nav-item">
                 <Link to="/advancesearch" className="nav-link">Advanced Search</Link>
-              </li>)}
-               {loginuser && (  <li className="nav-item">
+              </li>
+               <li className="nav-item">
                 <Link to="/dashboard" className="nav-link">Dashboard</Link>
-              </li>)}
+              </li>
             </ul>
           </div>
         </div>
       </nav>
+      )}
     </>
   );
 };

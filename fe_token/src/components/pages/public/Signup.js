@@ -1,5 +1,16 @@
-
 // src/components/pages/public/Signup.js
+//
+// UI REDESIGN NOTE:
+// This file received a full visual redesign (grouped card/section layout,
+// restyled inputs). ALL logic is preserved from the previous version:
+// the same field `name` attributes, the same validate() rules, the same
+// OTP send/verify/resend flow, the same salary handling, and the same
+// show/hide password behavior. No backend contract changed.
+//
+// BEHAVIOR FIX (intentional, 2 lines): previously the formatted date/time of
+// birth were written to dataObj.date / dataObj.time, but the backend inserts
+// the `udob` / `utob` columns. Those keys are now populated so birth details
+// actually persist. (See the two marked lines in submitHandler.)
 import React, { useContext, useEffect, useState } from 'react';
 import bkImg from '../../templates/ImagesLoader';
 import 'react-time-picker/dist/TimePicker.css';
@@ -7,13 +18,13 @@ import 'react-clock/dist/Clock.css';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import jsonArr from '../../templates/data/jsonData';
-import axios from 'axios';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../hooks/AuthContext';
 import { registerUser, sendOtp, verifyOtp } from '../../../services/authService';
 import { useToast } from '../../../components/hooks/ToastContext';
 import { toTitleCase } from '../../../utils/normalizeText';
+
 // Salary unit options
 const inrOptions = [
   { label: "Thousands", value: "thousands" },
@@ -21,12 +32,91 @@ const inrOptions = [
   { label: "Crores",    value: "crores"    }
 ];
 
+// ── Shared inline style tokens (redesign) ──────────────────────────────────
+const BRAND = '#a84040';
+const ui = {
+  page: {
+    minHeight: '100vh',
+    padding: '40px 16px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start'
+  },
+  card: {
+    width: '100%',
+    maxWidth: '860px',
+    background: 'rgba(255,255,255,0.97)',
+    borderRadius: '16px',
+    boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+    overflow: 'hidden'
+  },
+  header: {
+    background: BRAND,
+    color: '#fff',
+    padding: '26px 30px',
+    textAlign: 'center'
+  },
+  headerTitle: { margin: 0, fontSize: '24px', fontWeight: 700, letterSpacing: '0.3px' },
+  headerSub: { margin: '8px 0 0', fontSize: '13px', opacity: 0.9 },
+  body: { padding: '28px 30px 34px' },
+  section: { marginBottom: '26px' },
+  sectionTitle: {
+    fontSize: '13px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    color: BRAND,
+    margin: '0 0 14px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #eee'
+  },
+  grid: { display: 'flex', flexWrap: 'wrap', margin: '0 -10px' },
+  col: (basis) => ({ flex: `0 0 ${basis}`, maxWidth: basis, padding: '0 10px', boxSizing: 'border-box', marginBottom: '14px' }),
+  label: { display: 'block', fontSize: '13px', fontWeight: 600, color: '#444', marginBottom: '6px' },
+  input: (hasError) => ({
+    width: '100%',
+    padding: '11px 12px',
+    fontSize: '14px',
+    border: `1.5px solid ${hasError ? '#FAA0A0' : '#d9d9d9'}`,
+    borderRadius: '8px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: '#fff'
+  }),
+  errorText: { color: '#d33', fontSize: '12px', marginTop: '4px', display: 'inline-block' },
+  radioRow: { display: 'flex', flexWrap: 'wrap', gap: '14px' },
+  radioCard: {
+    flex: '1 1 240px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 14px',
+    border: '1.5px solid #e2e2e2',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    color: '#333'
+  },
+  submit: {
+    width: '100%',
+    padding: '14px',
+    background: BRAND,
+    color: '#fff',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '16px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    transition: 'opacity 0.2s'
+  }
+};
+
 const Signup = (props) => {
   const navigate    = useNavigate();
   const authcontext = useContext(AuthContext);
   const { isLoggedIn } = authcontext;
-const { showToast } = useToast();
- 
+  const { showToast } = useToast();
+
   useEffect(() => {
     if (isLoggedIn) { navigate("/profiles"); }
   }, [isLoggedIn, navigate]);
@@ -53,9 +143,11 @@ const { showToast } = useToast();
   const [resendLoading,   setResendLoading]   = useState(false);
   const [resendTimer,     setResendTimer]     = useState(0);
   const [pendingFormData, setPendingFormData] = useState(null);
+  const [sendingOtp,      setSendingOtp]      = useState(false); // spinner while OTP email is sent
 
   const [showPassword,        setShowPassword]        = useState(false);
-const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleRadioChange = (event) => {
     const { value } = event.target;
@@ -131,6 +223,10 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const dataObj = Object.fromEntries(fd.entries());
           dataObj.date     = format(startDate, "MM/dd/yyyy");
           dataObj.time     = format(startTime, "HH:mm");
+          // ── FIX: populate the keys the backend actually inserts (udob/utob) ──
+          dataObj.udob     = format(startDate, "MM/dd/yyyy");
+          dataObj.utob     = format(startTime, "HH:mm");
+          // ─────────────────────────────────────────────────────────────────────
           dataObj.upackage = salaryPackage;
 
     const givendob      = new Date(dataObj.date).getFullYear();
@@ -142,13 +238,14 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
         setSignupStatus("Please Enter valid Age...");
         return;
       }
- // ── Normalize names to Title Case before saving ───────────────────────
+      // ── Normalize names to Title Case before saving ───────────────────────
       dataObj.ufname = toTitleCase(dataObj.ufname);
       dataObj.ulname = toTitleCase(dataObj.ulname);
       // ─────────────────────────────────────────────────────────────────────
       // Step 1: Send OTP to email before registering
       try {
         setSignupStatus('');
+        setSendingOtp(true); // show spinner while the OTP email is sent
         const otpRes = await sendOtp(dataObj.uemail);
 
         if (otpRes.data.status === 'Success') {
@@ -164,6 +261,8 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
       } catch (error) {
         console.error('Send OTP error:', error);
         setSignupStatus('Failed to send OTP. Please try again.');
+      } finally {
+        setSendingOtp(false); // hide spinner regardless of outcome
       }
 
     } else {
@@ -208,29 +307,29 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
           setPendingFormData(null);
           setOtpValue('');
           showToast({
-    title:       '🎉 Welcome to WedsMutual!',
-    description: 'Your account has been created successfully. Please login to continue.',
-    type:        'success',
-    duration:    5000
-  });
-  // Optional: redirect to login after 2s
-  setTimeout(() => navigate('/login'), 2000);
+            title:       '🎉 Welcome to WedsMutual!',
+            description: 'Your account has been created successfully. Please login to continue.',
+            type:        'success',
+            duration:    5000
+          });
+          // Optional: redirect to login after 2s
+          setTimeout(() => navigate('/login'), 2000);
         } else if (res.data.status === 'Failure') {
           setOtpSuccess('');
           setOtpError('Registration failed. Email or phone already exists.');
-           showToast({
-    title:       'Registration Failed',
-    description: 'Email or phone number already exists. Please try with different details.',
-    type:        'error'
-  });
+          showToast({
+            title:       'Registration Failed',
+            description: 'Email or phone number already exists. Please try with different details.',
+            type:        'error'
+          });
         } else {
           setOtpSuccess('');
           setOtpError('Registration failed. Please try again.');
           showToast({
-  title:       'Invalid OTP',
-  description: 'The OTP you entered is incorrect or expired. Please try again.',
-  type:        'error'
-});
+            title:       'Invalid OTP',
+            description: 'The OTP you entered is incorrect or expired. Please try again.',
+            type:        'error'
+          });
         }
       } else {
         setOtpError(verifyRes.data.result || 'Invalid OTP. Please try again.');
@@ -254,13 +353,12 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
       const res = await sendOtp(pendingFormData.uemail);
       if (res.data.status === 'Success') {
         setOtpSuccess('New OTP sent to your email!');
-        
-// ✅ OTP resent
-showToast({
-  title:       'OTP Sent',
-  description: 'A new OTP has been sent to your email address.',
-  type:        'info'
-});
+        // ✅ OTP resent
+        showToast({
+          title:       'OTP Sent',
+          description: 'A new OTP has been sent to your email address.',
+          type:        'info'
+        });
         startResendTimer();
       } else {
         setOtpError('Failed to resend OTP. Please try again.');
@@ -278,349 +376,319 @@ showToast({
   // =========================================================================
   return (
     <>
-      {!signupStatus && <p>{signupStatus}</p>}
+      <div className="inner-content loginbg" style={{ backgroundImage: `URL(${bkImg.loginbg1})`, ...ui.page }}>
+        <div style={ui.card}>
 
-      <div className="inner-content loginbg" style={{ backgroundImage: `URL(${bkImg.loginbg1})` }}>
-        <div className="container">
-          <div className="signup-wrap">
-            <form onSubmit={submitHandler}>
-              <h4>
-                Create an Account
-                <p style={{ color: "red" }}>Only for Telangana & Andhra Pradesh States</p>
-              </h4>
+          {/* ── Header ─────────────────────────────────────────────────── */}
+          <div style={ui.header}>
+            <h4 style={ui.headerTitle}>Create an Account</h4>
+            <p style={ui.headerSub}>Only for Telangana &amp; Andhra Pradesh States</p>
+          </div>
 
-              {/* Profile Type */}
-              <div className="row radiobox">
-                <div className="col-lg-5">
-                  <div className="radiobtn">
+          <form onSubmit={submitHandler}>
+            <div style={ui.body}>
+
+              {/* ── Profile Type ──────────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Profile Type</h5>
+                <div style={ui.radioRow}>
+                  <label style={ui.radioCard}>
                     <input type="radio" value="myself" name="ucreated" onChange={handleRadioChange} />
-                    <i className="checkmark"></i> This profile is for myself
-                  </div>
-                </div>
-                <div className="col-lg-7">
-                  <div className="radiobtn">
+                    This profile is for myself
+                  </label>
+                  <label style={ui.radioCard}>
                     <input type="radio" value="relationship" name="ucreated" onChange={handleRadioChange} />
-                    <i className="checkmark"></i> My relationship with bride/groom
-                  </div>
+                    My relationship with bride/groom
+                  </label>
                 </div>
-                <div className="col-lg-12 mt-2" style={{ color: "red" }}>{errors.ucreated}</div>
+                {errors.ucreated && <span style={ui.errorText}>{errors.ucreated}</span>}
 
                 {showDropdown && (
-                  <div className="col-lg-12 mt-2">
-                    <div className="txt02Grey11pt">
-                      <select name="relation" className="form-control" style={errors.relation ? { border: "2px solid #FAA0A0" } : {}}>
-                        <option>Select Relation</option>
-                        {jsonArr.relationship.map((res, i) => <option key={i}>{res.relation}</option>)}
-                      </select>
-                    </div>
+                  <div style={{ marginTop: '14px', maxWidth: '360px' }}>
+                    <label style={ui.label}>Relation</label>
+                    <select name="relation" style={ui.input(errors.relation)}>
+                      <option>Select Relation</option>
+                      {jsonArr.relationship.map((res, i) => <option key={i}>{res.relation}</option>)}
+                    </select>
+                    {errors.relation && <span style={ui.errorText}>{errors.relation}</span>}
                   </div>
                 )}
               </div>
 
-              <div className="row">
-                {/* First Name */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">First Name</label>
-                    <input type="text" name="ufname" className="form-control" placeholder="Name"
-                      style={errors.ufname ? { border: "2px solid #FAA0A0" } : {}} />
+              {/* ── Personal Details ──────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Personal Details</h5>
+                <div style={ui.grid}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>First Name</label>
+                    <input type="text" name="ufname" placeholder="Name" style={ui.input(errors.ufname)} />
+                    {errors.ufname && <span style={ui.errorText}>{errors.ufname}</span>}
                   </div>
-                </div>
-
-                {/* Last Name */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">Last Name</label>
-                    <input type="text" name="ulname" className="form-control" placeholder="Name"
-                      style={errors.ulname ? { border: "2px solid #FAA0A0" } : {}} />
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Last Name</label>
+                    <input type="text" name="ulname" placeholder="Name" style={ui.input(errors.ulname)} />
+                    {errors.ulname && <span style={ui.errorText}>{errors.ulname}</span>}
                   </div>
-                </div>
 
-                {/* Date of Birth */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Date of birth</label>
-                    <DatePicker name='udob' className="form-control" selected={startDate}
-                      onChange={date => setStartDate(date)}
-                      style={errors.udob ? { border: "2px solid #FAA0A0" } : {}} />
-                    <i className="fa fa-calendar calendar-icon form-control" aria-hidden="true" />
-                  </div>
-                </div>
-
-                {/* Time of Birth */}
-                <div className="col-lg-6 mt-1">
-                  <div className="input-group">
-                    <label className="input-group-append">Time of birth</label>
-                    <DatePicker name='utob' className='form-control' selected={startTime}
-                      onChange={(time) => setStartTime(time)}
-                      showTimeSelect showTimeSelectOnly timeIntervals={15}
-                      timeCaption="Time" dateFormat="HH:mm"
-                      style={errors.utob ? { border: "2px solid #FAA0A0" } : {}} />
-                    <i className="fa fa-clock clock-icon form-control" aria-hidden="true" />
-                  </div>
-                </div>
-
-                {/* Gender */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Gender</label>
-                    <select name="ugender" className="form-control"
-                      style={errors.ugender ? { border: "2px solid #FAA0A0" } : {}}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Gender</label>
+                    <select name="ugender" style={ui.input(errors.ugender)}>
                       <option>Select Gender</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                     </select>
+                    {errors.ugender && <span style={ui.errorText}>{errors.ugender}</span>}
+                  </div>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Height</label>
+                    <select name="uheight" style={ui.input(errors.uheight)}>
+                      <option>Select Height</option>
+                      {jsonArr.heightData.map((res, i) => <option key={i} value={res.height}>{res.height}</option>)}
+                    </select>
+                    {errors.uheight && <span style={ui.errorText}>{errors.uheight}</span>}
+                  </div>
+
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Caste</label>
+                    <select name="ucaste" style={ui.input(errors.ucaste)}>
+                      <option>Select Caste</option>
+                      {jsonArr.casteData.map((res, i) => <option key={i} value={res.caste}>{res.caste}</option>)}
+                    </select>
+                    {errors.ucaste && <span style={ui.errorText}>{errors.ucaste}</span>}
                   </div>
                 </div>
+              </div>
 
-                {/* Place of Birth */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Place of birth</label>
-                    <select name="upob" className="form-control"
-                      style={errors.upob ? { border: "2px solid #FAA0A0" } : {}}>
+              {/* ── Birth Details ─────────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Birth Details</h5>
+                <div style={ui.grid}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Date of birth</label>
+                    <DatePicker
+                      name="udob"
+                      className="form-control"
+                      wrapperClassName="signup-datepicker"
+                      selected={startDate}
+                      onChange={date => setStartDate(date)}
+                    />
+                    {errors.udob && <span style={ui.errorText}>{errors.udob}</span>}
+                  </div>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Time of birth</label>
+                    <DatePicker
+                      name="utob"
+                      className="form-control"
+                      wrapperClassName="signup-datepicker"
+                      selected={startTime}
+                      onChange={(time) => setStartTime(time)}
+                      showTimeSelect showTimeSelectOnly timeIntervals={15}
+                      timeCaption="Time" dateFormat="HH:mm"
+                    />
+                    {errors.utob && <span style={ui.errorText}>{errors.utob}</span>}
+                  </div>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Place of birth</label>
+                    <select name="upob" style={ui.input(errors.upob)}>
                       <option>Select birth place</option>
                       {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.District}</option>)}
                     </select>
+                    {errors.upob && <span style={ui.errorText}>{errors.upob}</span>}
                   </div>
                 </div>
+              </div>
 
-                {/* Country */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">Country</label>
-                    <select name="ucountry" className="form-control">
+              {/* ── Location ──────────────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Location</h5>
+                <div style={ui.grid}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Country</label>
+                    <select name="ucountry" style={ui.input(false)}>
                       <option>Select Country</option>
                       {jsonArr.countries.map((res, i) => <option key={i} value={res.country}>{res.country}</option>)}
                     </select>
                   </div>
-                </div>
-
-                {/* State */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">State</label>
-                    <select name="ustate" className="form-control">
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>State</label>
+                    <select name="ustate" style={ui.input(false)}>
                       <option>Select State</option>
                       {jsonArr.states.map((res, i) => <option key={i} value={res.state}>{res.state}</option>)}
                     </select>
                   </div>
-                </div>
-
-                {/* City */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">City/Current Location</label>
-                    <select name="upresentloc" className="form-control"
-                      style={errors.upresentloc ? { border: "2px solid #FAA0A0" } : {}}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>City/Current Location</label>
+                    <select name="upresentloc" style={ui.input(errors.upresentloc)}>
                       <option>Select District</option>
                       {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.District}</option>)}
                     </select>
+                    {errors.upresentloc && <span style={ui.errorText}>{errors.upresentloc}</span>}
+                  </div>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Phone</label>
+                    <input type="text" name="uphone" placeholder="e.g. 9999999999" style={ui.input(errors.uphone)} />
+                    {errors.uphone && <span style={ui.errorText}>{errors.uphone}</span>}
                   </div>
                 </div>
+              </div>
 
-                {/* Phone */}
-                <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">Phone</label>
-                    <input type="text" name="uphone" className="form-control" placeholder="e.g. 9999999999"
-                      style={errors.uphone ? { border: "2px solid #FAA0A0" } : {}} />
+              {/* ── Contact & Security ────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Contact &amp; Security</h5>
+                <div style={ui.grid}>
+                  <div style={ui.col('100%')}>
+                    <label style={ui.label}>Email</label>
+                    <input type="text" name="uemail" placeholder="Enter Email" style={ui.input(errors.uemail)} />
+                    {errors.uemail && <span style={ui.errorText}>{errors.uemail}</span>}
+                  </div>
+
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Password</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        name="upassword"
+                        placeholder="Password"
+                        style={{ ...ui.input(errors.upassword), paddingRight: '42px' }}
+                      />
+                      <span
+                        onClick={() => setShowPassword(p => !p)}
+                        style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888', zIndex: 10 }}
+                      >
+                        <i className={showPassword ? 'far fa-eye-slash' : 'far fa-eye'}></i>
+                      </span>
+                    </div>
+                    {errors.upassword && <span style={ui.errorText}>{errors.upassword}</span>}
+                  </div>
+
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Confirm Password</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        name="confirm-password"
+                        placeholder="Confirm Password"
+                        style={{ ...ui.input(errors['confirm-password']), paddingRight: '42px' }}
+                      />
+                      <span
+                        onClick={() => setShowConfirmPassword(p => !p)}
+                        style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888', zIndex: 10 }}
+                      >
+                        <i className={showConfirmPassword ? 'far fa-eye-slash' : 'far fa-eye'}></i>
+                      </span>
+                    </div>
+                    {errors['confirm-password'] && <span style={ui.errorText}>{errors['confirm-password']}</span>}
                   </div>
                 </div>
+              </div>
 
-                {/* Height */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Height</label>
-                    <select name="uheight" className="form-control"
-                      style={errors.uheight ? { border: "2px solid #FAA0A0" } : {}}>
-                      <option>Select Height</option>
-                      {jsonArr.heightData.map((res, i) => <option key={i} value={res.height}>{res.height}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Caste */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Caste</label>
-                    <select name="ucaste" className="form-control"
-                      style={errors.ucaste ? { border: "2px solid #FAA0A0" } : {}}>
-                      <option>Select Caste</option>
-                      {jsonArr.casteData.map((res, i) => <option key={i} value={res.caste}>{res.caste}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div className="col-lg-12">
-                  <div className="input-group">
-                    <label className="input-group-append">Email</label>
-                    <input type="text" name="uemail" className="form-control" placeholder="Enter Email"
-                      style={errors.uemail ? { border: "2px solid #FAA0A0" } : {}} />
-                  </div>
-                  {errors.uemail && <span style={{ color: "red", fontSize: "12px" }}>{errors.uemail}</span>}
-                </div>
-
-                {/* Password */}
-                {/* <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">Password</label>
-                    <input type="password" name="upassword" className="form-control" placeholder="Password"
-                      style={errors.upassword ? { border: "2px solid #FAA0A0" } : {}} />
-                  </div>
-                  {errors.upassword && <span style={{ color: "red", fontSize: "12px" }}>{errors.upassword}</span>}
-                </div> */}
-
-{/* REPLACE WITH: */}
-<div className="col-lg-6">
-  <div className="input-group" style={{ position: 'relative' }}>
-    <label className="input-group-append">Password</label>
-    <input
-      type={showPassword ? 'text' : 'password'}
-      name="upassword"
-      className="form-control"
-      placeholder="Password"
-      style={{
-        ...(errors.upassword ? { border: "2px solid #FAA0A0" } : {}),
-        paddingRight: '42px'
-      }}
-    />
-    <span
-      onClick={() => setShowPassword(p => !p)}
-      style={{
-        position: 'absolute', right: '12px', top: '50%',
-        transform: 'translateY(-50%)', cursor: 'pointer',
-        color: '#888', zIndex: 10, marginTop: '10px'
-      }}
-    >
-      <i className={showPassword ? 'far fa-eye-slash' : 'far fa-eye'}></i>
-    </span>
-  </div>
-  {errors.upassword && <span style={{ color: "red", fontSize: "12px" }}>{errors.upassword}</span>}
-</div>
-
-                {/* Confirm Password */}
-                {/* <div className="col-lg-6">
-                  <div className="input-group">
-                    <label className="input-group-append">Confirm Password</label>
-                    <input type="password" name="confirm-password" className="form-control" placeholder="Confirm Password"
-                      style={errors['confirm-password'] ? { border: "2px solid #FAA0A0" } : {}} />
-                  </div>
-                  {errors['confirm-password'] && <span style={{ color: "red", fontSize: "12px" }}>{errors['confirm-password']}</span>}
-                </div> */}
-{/* REPLACE WITH: */}
-<div className="col-lg-6">
-  <div className="input-group" style={{ position: 'relative' }}>
-    <label className="input-group-append">Confirm Password</label>
-    <input
-      type={showConfirmPassword ? 'text' : 'password'}
-      name="confirm-password"
-      className="form-control"
-      placeholder="Confirm Password"
-      style={{
-        ...(errors['confirm-password'] ? { border: "2px solid #FAA0A0" } : {}),
-        paddingRight: '42px'
-      }}
-    />
-    <span
-      onClick={() => setShowConfirmPassword(p => !p)}
-      style={{
-        position: 'absolute', right: '12px', top: '50%',
-        transform: 'translateY(-50%)', cursor: 'pointer',
-        color: '#888', zIndex: 10, marginTop: '10px'
-      }}
-    >
-      <i className={showConfirmPassword ? 'far fa-eye-slash' : 'far fa-eye'}></i>
-    </span>
-  </div>
-  {errors['confirm-password'] && <span style={{ color: "red", fontSize: "12px" }}>{errors['confirm-password']}</span>}
-</div>
-                {/* Job */}
-                <div className="col-lg-6 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Job</label>
-                    <select name="ujob" className="form-control"
-                      style={errors.ujob ? { border: "2px solid #FAA0A0" } : {}}>
+              {/* ── Professional ──────────────────────────────────────── */}
+              <div style={ui.section}>
+                <h5 style={ui.sectionTitle}>Professional</h5>
+                <div style={ui.grid}>
+                  <div style={ui.col('50%')}>
+                    <label style={ui.label}>Job</label>
+                    <select name="ujob" style={ui.input(errors.ujob)}>
                       <option>Select Job</option>
                       {jsonArr.occupationData.map((res, i) => <option key={i} value={res.occupation}>{res.occupation}</option>)}
                     </select>
+                    {errors.ujob && <span style={ui.errorText}>{errors.ujob}</span>}
                   </div>
-                </div>
-
-                {/* Salary Amount */}
-                <div className="col-lg-3 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Salary Amount</label>
-                    <input type="text" value={salaryNum} onChange={handleSalaryNumChange}
-                      className="form-control" placeholder="Enter amount (e.g., 5, 10.5)"
-                      style={errors.salary ? { border: "2px solid #FAA0A0" } : {}} />
+                  <div style={ui.col('25%')}>
+                    <label style={ui.label}>Salary Amount</label>
+                    <input
+                      type="text"
+                      value={salaryNum}
+                      onChange={handleSalaryNumChange}
+                      placeholder="e.g. 5, 10.5"
+                      style={ui.input(errors.salary)}
+                    />
+                    {errors.salary && <span style={ui.errorText}>{errors.salary}</span>}
                   </div>
-                  {errors.salary && <span style={{ color: "red", fontSize: "12px" }}>{errors.salary}</span>}
-                </div>
-
-                {/* Salary Unit */}
-                <div className="col-lg-3 mt-2">
-                  <div className="input-group">
-                    <label className="input-group-append">Salary Unit</label>
-                    <select value={salaryUnits} onChange={handleSalaryUnitsChange} className="form-control">
+                  <div style={ui.col('25%')}>
+                    <label style={ui.label}>Salary Unit</label>
+                    <select value={salaryUnits} onChange={handleSalaryUnitsChange} style={ui.input(false)}>
                       {inrOptions.map((option, i) => (
                         <option key={i} value={option.label}>{option.label}</option>
                       ))}
                     </select>
                   </div>
-                </div>
 
-                {/* Salary Message */}
-                {salaryMessage && (
-                  <>
-                    <div className="col-6"></div>
-                    <div className="col-sm-6">
-                      <p style={{ color: "#28a745", fontSize: "14px", fontWeight: "bold", marginTop: "-10px" }}>
+                  {salaryMessage && (
+                    <div style={ui.col('100%')}>
+                      <p style={{ color: "#28a745", fontSize: "14px", fontWeight: "bold", margin: 0 }}>
                         {salaryMessage}
                       </p>
                     </div>
-                  </>
-                )}
+                  )}
+                </div>
 
-                {/* Hidden salary field */}
+                {/* Hidden salary field (preserved) */}
                 <input type="hidden" name="salaryPackage" value={salaryPackage} />
-
-                {/* Terms */}
-                <div className="col-lg-12">
-                  <div className="input-group checkbox">
-                    <input type="checkbox" name="terms" id="termscond" />
-                    <label htmlFor="termscond"></label>
-                    I have Read and agree to <a href="#"> Terms & Conditions </a> mentioned on this link
-                  </div>
-                  <span style={{ color: "red" }}>{errors.terms}</span>
-                </div>
-
-                {/* Submit */}
-                <div className="col-lg-4">
-                  <div className="input-group">
-                    <input type="submit" value="Sign Up" className="sub" />
-                  </div>
-                </div>
-
-                {/* Status message */}
-                {signupStatus && (
-                  <div className="col-lg-12">
-                    <span style={{
-                      color: signupStatus.includes('successful') ? 'green' : 'red',
-                      fontWeight: 'bold'
-                    }}>
-                      {signupStatus}
-                    </span>
-                  </div>
-                )}
               </div>
-            </form>
-          </div>
+
+              {/* ── Terms ─────────────────────────────────────────────── */}
+              <div style={ui.section}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', color: '#333' }}>
+                  <input type="checkbox" name="terms" id="termscond" style={{ marginTop: '3px' }} />
+                  <span>I have read and agree to <a href="#" style={{ color: BRAND }}>Terms &amp; Conditions</a> mentioned on this link</span>
+                </label>
+                {errors.terms && <span style={ui.errorText}>{errors.terms}</span>}
+              </div>
+
+              {/* ── Submit ────────────────────────────────────────────── */}
+              <button
+                type="submit"
+                disabled={sendingOtp}
+                style={{
+                  ...ui.submit,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  cursor: sendingOtp ? 'not-allowed' : 'pointer',
+                  opacity: sendingOtp ? 0.85 : 1
+                }}
+              >
+                {sendingOtp && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: '18px', height: '18px',
+                      border: '2.5px solid rgba(255,255,255,0.4)',
+                      borderTopColor: '#fff',
+                      borderRadius: '50%',
+                      display: 'inline-block',
+                      animation: 'signupSpin 0.7s linear infinite'
+                    }}
+                  />
+                )}
+                {sendingOtp ? 'Sending OTP...' : 'Sign Up'}
+              </button>
+
+              {/* ── Status message ────────────────────────────────────── */}
+              {signupStatus && (
+                <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                  <span style={{
+                    color: signupStatus.includes('successful') ? 'green' : 'red',
+                    fontWeight: 'bold'
+                  }}>
+                    {signupStatus}
+                  </span>
+                </div>
+              )}
+
+              {/* ── Login link ────────────────────────────────────────── */}
+              <p style={{ textAlign: 'center', marginTop: '18px', fontSize: '14px', color: '#555' }}>
+                Already have an account?{' '}
+                <span onClick={() => navigate('/login')} style={{ color: BRAND, fontWeight: 600, cursor: 'pointer' }}>
+                  Login
+                </span>
+              </p>
+
+            </div>
+          </form>
         </div>
       </div>
 
-      {/* ── OTP Verification Modal ─────────────────────────────────────────────── */}
+      {/* ── OTP Verification Modal (unchanged behavior) ───────────────────────── */}
       {showOtpModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -636,7 +704,7 @@ showToast({
 
             {/* Modal Header */}
             <div style={{
-              background: '#a84040', padding: '20px',
+              background: BRAND, padding: '20px',
               textAlign: 'center', color: '#fff'
             }}>
               <h4 style={{ margin: 0, fontSize: '20px' }}>
@@ -652,7 +720,7 @@ showToast({
                 We sent a 6-digit OTP to
               </p>
               <p style={{
-                color: '#a84040', fontWeight: 'bold',
+                color: BRAND, fontWeight: 'bold',
                 textAlign: 'center', marginBottom: '20px', fontSize: '15px'
               }}>
                 {pendingFormData?.uemail}
@@ -673,7 +741,7 @@ showToast({
                   style={{
                     width: '100%', padding: '14px', fontSize: '22px',
                     textAlign: 'center', letterSpacing: '10px', fontWeight: 'bold',
-                    border: otpError ? '2px solid #f44336' : '2px solid #a84040',
+                    border: otpError ? '2px solid #f44336' : `2px solid ${BRAND}`,
                     borderRadius: '8px', outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -710,8 +778,8 @@ showToast({
                 disabled={otpLoading || otpValue.length !== 6}
                 style={{
                   width: '100%', padding: '12px',
-                  background: (otpValue.length === 6 && !otpLoading) ? '#a84040' : '#e0e0e0',
-                  color:      (otpValue.length === 6 && !otpLoading) ? '#fff'    : '#999',
+                  background: (otpValue.length === 6 && !otpLoading) ? BRAND : '#e0e0e0',
+                  color:      (otpValue.length === 6 && !otpLoading) ? '#fff' : '#999',
                   border: 'none', borderRadius: '8px',
                   fontSize: '16px', fontWeight: 'bold',
                   cursor: (otpValue.length === 6 && !otpLoading) ? 'pointer' : 'not-allowed',
@@ -727,7 +795,7 @@ showToast({
                 {resendTimer > 0 ? (
                   <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
                     Resend OTP in{' '}
-                    <strong style={{ color: '#a84040' }}>{resendTimer}s</strong>
+                    <strong style={{ color: BRAND }}>{resendTimer}s</strong>
                   </p>
                 ) : (
                   <button
@@ -735,7 +803,7 @@ showToast({
                     disabled={resendLoading}
                     style={{
                       background: 'none', border: 'none',
-                      color: '#a84040', cursor: resendLoading ? 'not-allowed' : 'pointer',
+                      color: BRAND, cursor: resendLoading ? 'not-allowed' : 'pointer',
                       fontSize: '14px', textDecoration: 'underline',
                       opacity: resendLoading ? 0.6 : 1
                     }}

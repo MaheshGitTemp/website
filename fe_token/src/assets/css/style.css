@@ -4264,3 +4264,19 @@ blockquote {
     width: 100%;
   }
 }
+
+/* ── Mobile: shrink the notification (bell) dropdown ───────────────────────
+   Desktop keeps width:300px (rule above). On mobile that 300px pushes the
+   dropdown off-screen, so here we give it a smaller, viewport-safe width and
+   anchor it to the right edge so it stays fully on-screen. */
+@media screen and (max-width: 767px) {
+  .usernav > li.notification .dropdown-menu {
+    width: 260px;
+    min-width: 0;
+    max-width: calc(100vw - 20px);
+    right: 0;
+    left: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}

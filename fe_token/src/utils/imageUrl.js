@@ -23,3 +23,28 @@ export const imageUrl = (path) => {
   // e.g. /uploads/gallery/user_7_timestamp_original.jpg
   return `${BASE}${path}`;
 };
+
+// ─── Approval status helpers ─────────────────────────────────────────────────
+// Images now carry a `status` of 'pending' | 'approved' | 'rejected'. Only
+// approved images may be shown to viewers. The backend already filters most
+// cross-user responses, but a gallery owner receives ALL their own rows
+// (incl. pending/rejected) from GetUserGallery — so the frontend must guard
+// display surfaces too. These helpers centralize that rule.
+//
+// Note: records returned before the approval feature existed may have no
+// `status` field at all. Such legacy rows were grandfathered to 'approved' in
+// the DB, so a missing status is treated as approved for safety of display.
+
+export const isApproved = (img) =>
+  !!img && (img.status === undefined || img.status === null || img.status === 'approved');
+
+// Keep only approved images from a gallery array.
+export const approvedOnly = (gallery) =>
+  Array.isArray(gallery) ? gallery.filter(isApproved) : [];
+
+// Find the APPROVED profile image in a gallery array (the one flagged
+// isprofile). Returns undefined if the profile image isn't approved yet.
+export const approvedProfileImage = (gallery) =>
+  Array.isArray(gallery)
+    ? gallery.find((img) => img.isprofile === true && isApproved(img))
+    : undefined;

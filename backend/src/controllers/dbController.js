@@ -578,19 +578,54 @@ exports.getUserMobile = async (req, res) => {
       return res.status(200).json({ status: 'Failure', result: 'User not found.' });
     }
 
-    // Owner always sees their own contact info
+    // Owner always sees their own contact info — no rules/limits apply.
     const isOwner = Number(requesterId) === Number(uid);
 
-    return res.status(200).json({
-      status: 'Success',
-      data: {
-        uid:    data.uid,
-        uphone: isOwner || !data.hide_phone ? data.uphone : null,
-        uemail: isOwner || !data.hide_email ? data.uemail : null,
-        hide_phone: data.hide_phone,
-        hide_email: data.hide_email
-      }
+    const buildPayload = () => ({
+      uid:    data.uid,
+      uphone: isOwner || !data.hide_phone ? data.uphone : null,
+      uemail: isOwner || !data.hide_email ? data.uemail : null,
+      hide_phone: data.hide_phone,
+      hide_email: data.hide_email
     });
+
+    if (isOwner) {
+      return res.status(200).json({ status: 'Success', data: buildPayload() });
+    }
+
+    // ── Rule 3: Hidden-contact rule ────────────────────────────────────────
+    // A user who hides their OWN phone cannot view others' contact numbers.
+    const requester = await prepareDBData.getUserMobile(Number(requesterId));
+    if (requester && requester.hide_phone) {
+      return res.status(200).json({
+        status: 'Failure',
+        reason: 'contact_hidden',
+        result: "Your contact number is in hidden mode, so you can't view other members' contact numbers. Make your number public in Profile Security to view contact details."
+      });
+    }
+
+    // ── Rules 1 & 2: Daily limit (value read from DB settings) ─────────────
+    // Re-viewing a profile already unlocked today is free and does not count.
+    const alreadyViewed = await prepareDBData.hasViewedContactToday(Number(requesterId), Number(uid));
+
+    if (!alreadyViewed) {
+      const limit = await prepareDBData.getNumericSetting('daily_contact_view_limit', 5);
+      const usedToday = await prepareDBData.getTodayContactViewCount(Number(requesterId));
+
+      if (usedToday >= limit) {
+        return res.status(200).json({
+          status: 'Failure',
+          reason: 'daily_limit_reached',
+          limit,
+          result: `You have reached your daily limit of ${limit} contact views. Your limit will be renewed tomorrow, so please come back then to view more contact numbers.`
+        });
+      }
+
+      // Record this new view (counts toward today's limit).
+      await prepareDBData.recordContactView(Number(requesterId), Number(uid));
+    }
+
+    return res.status(200).json({ status: 'Success', data: buildPayload() });
   } catch (error) {
     res.status(500).json({ status: 'Failure', result: error.message });
   }

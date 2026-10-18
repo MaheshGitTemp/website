@@ -40,3 +40,26 @@
   text-transform: capitalize;
 }
  
+
+/* ── Signup redesign: make react-datepicker fill its grid column ───────── */
+.signup-datepicker,
+.signup-datepicker .react-datepicker-wrapper,
+.signup-datepicker .react-datepicker__input-container {
+  display: block;
+  width: 100%;
+}
+.signup-datepicker .react-datepicker__input-container input {
+  width: 100%;
+  padding: 11px 12px;
+  font-size: 14px;
+  border: 1.5px solid #d9d9d9;
+  border-radius: 8px;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+/* ── Signup: spinner for the "Sending OTP..." submit state ─────────────── */
+@keyframes signupSpin {
+  to { transform: rotate(360deg); }
+}

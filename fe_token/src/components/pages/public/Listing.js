@@ -31,6 +31,16 @@ const Listing = () => {
 const [searchSalaryNum, setSearchSalaryNum] = useState("");
 const [searchSalaryUnits, setSearchSalaryUnits] = useState("Lakhs");
 const [searchSalaryMessage, setSearchSalaryMessage] = useState("");
+// Advanced Search panel expand/collapse — MOBILE ONLY (desktop stays as before).
+const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+useEffect(() => {
+  const onResize = () => setIsMobile(window.innerWidth < 768);
+  window.addEventListener('resize', onResize);
+  return () => window.removeEventListener('resize', onResize);
+}, []);
+const [advancedOpen, setAdvancedOpen] = useState(false);
+// On desktop the filter form is always visible; on mobile it's controlled by the toggle.
+const showSearchForm = !isMobile || advancedOpen;
 useEffect(() => {
   // Check if localStorage keys exist, if not set them by default facing issue of male in new systems
   if (!localStorage.getItem("userGender")) {
@@ -452,7 +462,7 @@ useEffect(() => {
 
       <div className="inner-heading" style={{ backgroundImage: `url(${Profiles.titlebg})` }}>
         <div className="container">
-          <h3>Search Result</h3>
+          <h3>Profiles List</h3>
         </div>
       </div>
 
@@ -463,10 +473,33 @@ useEffect(() => {
               <div className="col-lg-3">
                 {/* Sidebar content - keeping it minimal for brevity */}
                 <div className="listingLeft">
-                  <div className="title">
-                    <h1>Quick <span>Search</span></h1>
-                  </div>
-                    
+                  {/* Desktop: original "Quick Search" title (unchanged). */}
+                  {!isMobile && (
+                    <div className="title">
+                      <h1>Quick <span>Search</span></h1>
+                    </div>
+                  )}
+
+                  {/* Mobile only: Advanced Search — click to expand/collapse the filter panel */}
+                  {isMobile && (
+                    <button
+                      type="button"
+                      onClick={() => setAdvancedOpen(o => !o)}
+                      aria-expanded={advancedOpen}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center',
+                        justifyContent: 'space-between', gap: '8px',
+                        padding: '12px 16px', background: '#a84040', color: '#fff',
+                        border: 'none', borderRadius: '6px', fontSize: '16px',
+                        fontWeight: 600, cursor: 'pointer', marginBottom: advancedOpen ? '15px' : 0
+                      }}
+                    >
+                      <span><i className="fas fa-sliders-h" style={{ marginRight: '8px' }}></i> Advanced Search</span>
+                      <i className={advancedOpen ? 'fas fa-chevron-up' : 'fas fa-chevron-down'}></i>
+                    </button>
+                  )}
+
+                  {showSearchForm && (
             <form onSubmit={basicSearchHandler}>
                     {!userId && (
                       <div class="input-group">
@@ -804,6 +837,7 @@ useEffect(() => {
                       <input type="submit" value="Search" class="sub" />
                     </div>
                   </form>
+                  )}
                 </div>
               </div>
               

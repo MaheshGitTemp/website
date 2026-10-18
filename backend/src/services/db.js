@@ -75,10 +75,11 @@ const GetAllUsers = async (page = 1, limit = 20, gender = null) => {
         else if (g === 'female') genderParam = 'Female';
       }
 
-      // ✅ SQL snippet to fetch profile images with privacy check
+      // ✅ SQL snippet to fetch profile images with privacy check.
+      // Only APPROVED images are shown to other users (approval workflow).
       const profileImageSql = `
-        (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true LIMIT 1) AS profile_image,
-        (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath_thumb END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true LIMIT 1) AS profile_image_thumb
+        (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true AND g.status = 'approved' LIMIT 1) AS profile_image,
+        (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath_thumb END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true AND g.status = 'approved' LIMIT 1) AS profile_image_thumb
       `;
 
       if (genderParam) {
@@ -150,19 +151,23 @@ const SaveUserGallery = async (list) => {
     const client = await pool.connect();
     const items = JSON.parse(list);
     
-    // ✅ Map all 3 image paths + metadata
+    // ✅ Map all 3 image paths + metadata.
+    // New uploads are saved as 'pending' — they stay hidden from other users
+    // until an admin approves them. (Existing rows were grandfathered to
+    // 'approved' by migration 002.)
     const values = items.map(obj => [
       obj.imagepath, 
       obj.imagepath_medium, 
       obj.imagepath_thumb, 
       obj.isprofile, 
       obj.userid, 
-      obj.updateddate
+      obj.updateddate,
+      'pending'
     ]);
 
-    // ✅ Insert all 6 columns into the database
+    // ✅ Insert all columns (incl. approval status) into the database
     const query = format(
-      'INSERT INTO usergallery ("imagepath", "imagepath_medium", "imagepath_thumb", "isprofile", "uid", "updateddate") VALUES %L RETURNING *', 
+      'INSERT INTO usergallery ("imagepath", "imagepath_medium", "imagepath_thumb", "isprofile", "uid", "updateddate", "status") VALUES %L RETURNING *', 
       values
     );
 
@@ -861,6 +866,84 @@ const getUserMobile = async (uid) => {
   }
 };
 
+// ─── Contact-view limit helpers ───────────────────────────────────────────────
+
+// Read an app setting (e.g. the daily contact-view limit) from app_settings.
+// Returns the numeric value, or the provided fallback if the row is missing.
+const getNumericSetting = async (key, fallback) => {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      `SELECT value FROM app_settings WHERE key = $1`,
+      [key]
+    );
+    const parsed = res.rows[0] ? parseInt(res.rows[0].value, 10) : NaN;
+    return Number.isFinite(parsed) ? parsed : fallback;
+  } catch (error) {
+    console.error('getNumericSetting error:', error);
+    return fallback; // fail open to the default limit if settings read fails
+  } finally {
+    client.release();
+  }
+};
+
+// How many DISTINCT profiles has this viewer unlocked today?
+const getTodayContactViewCount = async (viewerId) => {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      `SELECT COUNT(*) AS count FROM contact_views
+         WHERE viewer_id = $1 AND viewed_on = CURRENT_DATE`,
+      [viewerId]
+    );
+    return parseInt(res.rows[0].count, 10) || 0;
+  } catch (error) {
+    console.error('getTodayContactViewCount error:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// Has this viewer already unlocked THIS profile today? (re-views are free)
+const hasViewedContactToday = async (viewerId, viewedUid) => {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      `SELECT 1 FROM contact_views
+         WHERE viewer_id = $1 AND viewed_uid = $2 AND viewed_on = CURRENT_DATE
+         LIMIT 1`,
+      [viewerId, viewedUid]
+    );
+    return res.rows.length > 0;
+  } catch (error) {
+    console.error('hasViewedContactToday error:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// Record a contact view for today. ON CONFLICT keeps it idempotent so a repeat
+// view of the same profile the same day doesn't create a duplicate / error.
+const recordContactView = async (viewerId, viewedUid) => {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO contact_views (viewer_id, viewed_uid, viewed_on)
+         VALUES ($1, $2, CURRENT_DATE)
+         ON CONFLICT (viewer_id, viewed_uid, viewed_on) DO NOTHING`,
+      [viewerId, viewedUid]
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('recordContactView error:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 // ─── 4. REPLACE existing GetUserGallery ───────────────────────────────────────
 // Find existing GetUserGallery in db.js and replace with this:
 // Now returns empty array if user has hidden their gallery (for other users)
@@ -876,11 +959,18 @@ const GetUserGallery = async (uid, requesterId = null) => {
     const privacy = privacyRes.rows[0];
     const isOwner = requesterId && Number(requesterId) === Number(uid);
 
-    // Fetch gallery
-    const result = await client.query(
-      `SELECT * FROM usergallery WHERE uid = $1`,
-      [uid]
-    );
+    // Fetch gallery.
+    // Owner sees ALL their images (incl. pending/rejected, so they know status);
+    // everyone else sees only APPROVED images (approval workflow).
+    const result = isOwner
+      ? await client.query(
+          `SELECT * FROM usergallery WHERE uid = $1`,
+          [uid]
+        )
+      : await client.query(
+          `SELECT * FROM usergallery WHERE uid = $1 AND status = 'approved'`,
+          [uid]
+        );
 
     let rows = result.rows;
 
@@ -921,6 +1011,10 @@ module.exports.saveOtp   = saveOtp;
 module.exports.verifyOtp = verifyOtp;
 //end registeration
 module.exports.getUserMobile = getUserMobile;  // add to existing exports
+module.exports.getNumericSetting       = getNumericSetting;
+module.exports.getTodayContactViewCount = getTodayContactViewCount;
+module.exports.hasViewedContactToday    = hasViewedContactToday;
+module.exports.recordContactView        = recordContactView;
 module.exports.getPublicProfile = getPublicProfile;  // add to existing exports added 2
 
 module.exports.register = register;

@@ -2,23 +2,58 @@
 
 import React, { useEffect, useState, useContext, useRef } from 'react'
 import Profiles from '../../../templates/ImagesLoader'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AuthContext } from '../../../hooks/AuthContext';
 import { fetchUserDetails, fetchUserGallery } from '../../../../services/userService';
 import { getUnreadMessageCount } from '../../../../services/messageService';
 import profilepics from '../../../templates/ImagesLoader';
 import { PhotoProvider, PhotoView } from 'react-photo-view';
 import 'react-photo-view/dist/react-photo-view.css';
-import { imageUrl } from '../../../../utils/imageUrl';
+import { imageUrl, approvedOnly, approvedProfileImage } from '../../../../utils/imageUrl';
 
 const Sidebar = () => {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const { logout } = useContext(AuthContext);
 
   const [getGallery,     setGetGallery]     = useState([]);
   const [userDetails,    setUserDetails]    = useState([]);
   const [copied,         setCopied]         = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+
+  // ── Mobile: collapsible sidebar nav ───────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Nav starts collapsed on mobile, always open on desktop.
+  const [navOpen, setNavOpen] = useState(!(window.innerWidth < 768));
+  // Keep nav shown on desktop even if the window is resized up from mobile.
+  useEffect(() => { if (!isMobile) setNavOpen(true); }, [isMobile]);
+
+  // Gallery section is shown everywhere on desktop, but on mobile only on the
+  // Gallery page itself (/addgallery).
+  const showGallerySection = !isMobile || location.pathname === '/addgallery';
+
+  // Navigate to a tab, then scroll to the page's main content column so the user
+  // lands focused on that section instead of at the top (behind the sidebar).
+  const goToTab = (e, path) => {
+    if (e) e.preventDefault();
+    if (isMobile) setNavOpen(false); // collapse the menu after a selection
+    navigate(path);
+    // Let the destination render, then scroll its content column into view.
+    setTimeout(() => {
+      const content = document.querySelector('.profile-Wrap .col-lg-8');
+      if (content) {
+        content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 150);
+  };
 
   // ✅ stable userId — not recreated every render
   const userId     = React.useMemo(() => localStorage.getItem("userId"), []);
@@ -69,7 +104,7 @@ const Sidebar = () => {
               <PhotoProvider>
                 {getGallery.length > 0 ? (
                   (() => {
-                    const profileFile = getGallery.find(file => file.isprofile);
+                    const profileFile = approvedProfileImage(getGallery);
                     return profileFile ? (
                       // ✅ PhotoView src — original (full size for lightbox)
                       // ✅ img src      — medium (display in sidebar)
@@ -127,26 +162,47 @@ const Sidebar = () => {
       </div>
 
       <div className="editDetails" >
+        {/* Mobile-only collapse/expand toggle for the menu */}
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => setNavOpen(o => !o)}
+            aria-expanded={navOpen}
+            aria-label={navOpen ? 'Collapse menu' : 'Expand menu'}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: '8px',
+              padding: '12px 16px', background: '#a84040', color: '#fff',
+              border: 'none', borderRadius: '6px', fontSize: '15px',
+              fontWeight: 600, cursor: 'pointer', marginBottom: navOpen ? '10px' : 0
+            }}
+          >
+            <span><i className="fas fa-bars" style={{ marginRight: '8px' }}></i> My Account</span>
+            <i className={navOpen ? 'fas fa-chevron-up' : 'fas fa-chevron-down'}></i>
+          </button>
+        )}
+
+        {navOpen && (
         <ul >
-          <li><Link to="/dashboard"><i className="fas fa-tachometer-alt"></i> Dashboard</Link></li>
-          <li><Link to="/editprofile"><i className="fas fa-edit"></i> Edit Profile</Link></li>
-          <li><Link to="/addgallery"><i className="fas fa-images"></i> Gallery</Link></li>
+          <li><Link to="/dashboard" onClick={(e) => goToTab(e, '/dashboard')}><i className="fas fa-tachometer-alt"></i> Dashboard</Link></li>
+          <li><Link to="/editprofile" onClick={(e) => goToTab(e, '/editprofile')}><i className="fas fa-edit"></i> Edit Profile</Link></li>
+          <li><Link to="/addgallery" onClick={(e) => goToTab(e, '/addgallery')}><i className="fas fa-images"></i> Gallery</Link></li>
           <li>
-            <Link to="/messages">
+            <Link to="/messages" onClick={(e) => goToTab(e, '/messages')}>
               <i className="far fa-comment"></i> Messages{' '}
               {unreadMessages > 0 && (
                 <span className="badge">{unreadMessages > 99 ? '99+' : unreadMessages}</span>
               )}
             </Link>
           </li>
-          <li><Link to="/changepassword"><i className="fas fa-key"></i> Change Password</Link></li>
+          <li><Link to="/changepassword" onClick={(e) => goToTab(e, '/changepassword')}><i className="fas fa-key"></i> Change Password</Link></li>
           <li>
-            <Link to="/profilesecurity">
+            <Link to="/profilesecurity" onClick={(e) => goToTab(e, '/profilesecurity')}>
               <i className="fas fa-shield-alt"></i> Profile Security
             </Link>
           </li>
           <li>
-            <Link to="/closeaccount">
+            <Link to="/closeaccount" onClick={(e) => goToTab(e, '/closeaccount')}>
               <i className="fas fa-times"></i> Close My Account
             </Link>
           </li>
@@ -156,13 +212,15 @@ const Sidebar = () => {
             </a>
           </li>
         </ul>
+        )}
       </div>
 
+      {showGallerySection && (
       <div className="authorgallery">
         <h2>Gallery</h2>
         <PhotoProvider>
           <div className="row">
-            {getGallery.map(res => (
+            {approvedOnly(getGallery).map(res => (
               <div className="col-lg-4 col-md-6 col-6" key={res.id}>
                 <div className="work_item">
                   <div className="work">
@@ -192,6 +250,7 @@ const Sidebar = () => {
           </div>
         </PhotoProvider>
       </div>
+      )}
     </div>
     </>
   );

@@ -8,21 +8,42 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { imageUrl } from '../../../utils/imageUrl';
 import { fetchUserDetails, fetchUserGallery, getUserContactInfo } from '../../../services/userService';
 import { getPublicProfile, getPublicGallery } from '../../../services/listingService';
+import { approvedOnly, approvedProfileImage } from '../../../utils/imageUrl';
 import { 
   sendProposal, 
   getSentProposals, 
   getNotifications
 } from '../../../services/proposalService';
 import { sendMessage } from '../../../services/messageService';
+import { useToast } from '../../../components/hooks/ToastContext';
 
 const ProfileDetails = () => {
   const { uid }    = useParams();
   const navigate   = useNavigate();
+  const { showToast } = useToast();
+
+  // Static "request sent" toast fired by the Request Photos button.
+  const handleRequestPhotos = (e) => {
+    if (e) e.preventDefault();
+    showToast({
+      title:       'Request sent',
+      description: 'Request sent successfully.',
+      type:        'success'
+    });
+  };
 
   const [userDetails, setUserDetails] = useState({});
   const [profileImage, setProfileImage] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [gallerydata, setGalleryData] = useState([]);
+
+  // Hide ad images on mobile only (kept on desktop).
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // ── Proposal state ────────────────────────────────────────────────────────
   const [proposalStatus,  setProposalStatus]  = useState('idle');
@@ -35,14 +56,14 @@ const ProfileDetails = () => {
   const [messageDate,    setMessageDate]    = useState(null);
 
   // ── Modal state ───────────────────────────────────────────────────────────
-  const [showPicRequestModal,      setShowPicRequestModal]      = useState(false);
   const [showContactDetailsModal,  setShowContactDetailsModal]  = useState(false);
 
   // ── Contact details state ─────────────────────────────────────────────────
-  const [contactInfo,     setContactInfo]     = useState(null);
-  const [contactLoading,  setContactLoading]  = useState(false);
-  const [contactError,    setContactError]    = useState('');
-  const [contactRevealed, setContactRevealed] = useState(false);
+  const [contactInfo,       setContactInfo]       = useState(null);
+  const [contactLoading,    setContactLoading]    = useState(false);
+  const [contactError,      setContactError]      = useState('');
+  const [contactErrorReason,setContactErrorReason]= useState(''); // 'contact_hidden' | 'daily_limit_reached' | ''
+  const [contactRevealed,   setContactRevealed]   = useState(false);
 
   const loggedInUserId = localStorage.getItem("userId");
 
@@ -56,6 +77,7 @@ const ProfileDetails = () => {
     setContactInfo(null);
     setContactRevealed(false);
     setContactError('');
+    setContactErrorReason('');
   }, [uid]);
 
   // ── Fetch profile details + gallery ──────────────────────────────────────
@@ -88,7 +110,9 @@ const ProfileDetails = () => {
           }
           // ── End Gender Guard ─────────────────────────────────────────────
 
-          const profileImg = fetchimage.data.find(item => item.isprofile === true);
+          // Only an APPROVED profile image may be shown (own-profile view can
+          // include pending images from the gallery API).
+          const profileImg = approvedProfileImage(fetchimage.data);
           setProfileImage(profileImg ? profileImg.imagepath : profilepics.notfound);
           setUserDetails(profileData);
 
@@ -96,9 +120,7 @@ const ProfileDetails = () => {
           // Guest — no gender restriction, use public endpoints
           const response   = await getPublicProfile(uid);
           const fetchimage = await getPublicGallery(uid);
-          const profileImg = Array.isArray(fetchimage.data)
-            ? fetchimage.data.find(item => item.isprofile === true)
-            : null;
+          const profileImg = approvedProfileImage(fetchimage.data);
           setProfileImage(profileImg ? profileImg.imagepath : profilepics.notfound);
           setUserDetails(response.data.data || {});
         }
@@ -113,7 +135,8 @@ const ProfileDetails = () => {
         const resp = isLoggedIn
           ? await fetchUserGallery(uid)
           : await getPublicGallery(uid);
-        setGalleryData(Array.isArray(resp.data) ? resp.data : []);
+        // Show only approved images in the public gallery/carousel.
+        setGalleryData(approvedOnly(resp.data));
       } catch (error) {
         console.log(error);
       }
@@ -161,13 +184,17 @@ const ProfileDetails = () => {
     if (!loggedInUserId) return;
     setContactLoading(true);
     setContactError('');
+    setContactErrorReason('');
     try {
       const response = await getUserContactInfo(uid);
       if (response.data.status === 'Success') {
         setContactInfo(response.data.data);
         setContactRevealed(true);
       } else {
+        // reason: 'contact_hidden' | 'daily_limit_reached' | undefined.
+        // Message text is built by the backend (includes the live limit value).
         setContactError(response.data.result || 'Failed to fetch contact details.');
+        setContactErrorReason(response.data.reason || '');
       }
     } catch (err) {
       console.error('[CONTACT] error:', err);
@@ -440,15 +467,6 @@ const ProfileDetails = () => {
                   <h4>Introduction</h4>
                   <p>{userDetails.about || 'Not Available'}</p>
                 </div>
-                <div className="hiddengal">
-                  <h3>Gallery Hidden</h3>
-                  <p>Photos are Hidden by user, if you are interested in this profile then send request to unlock for you.</p>
-                  <div className="viewbtn">
-                    <a href="#" onClick={(e) => { e.preventDefault(); setShowPicRequestModal(true); }}>
-                      Request For Pictures
-                    </a>
-                  </div>
-                </div>
                 <div className="authorgallery">
                   <h2>Gallery</h2>
                   {gallerydata.length > 0 ? (
@@ -474,17 +492,17 @@ const ProfileDetails = () => {
                     </PhotoProvider>
                   ) : (
                     <div className="hiddengal">
-                      <h3>Request for Photos/Gallery</h3>
-                      <p>No gallery or profile pictures have been added by this user.</p>
+                      <h3>Gallery Hidden</h3>
+                      <p>Photos are hidden by the user. If you are interested in this profile, send a request to unlock them for you.</p>
                       <div className="viewbtn">
-                        <a href="#" onClick={(e) => { e.preventDefault(); setShowPicRequestModal(true); }}>
+                        <a href="#" onClick={handleRequestPhotos}>
                           Request Photos
                         </a>
                       </div>
                     </div>
                   )}
                 </div>
-                <div className="google-add"><img src={profilepics.gad3} alt="" /></div>
+                {!isMobile && <div className="google-add"><img src={profilepics.gad3} alt="" /></div>}
               </div>
 
               <div className="col-lg-8 col-md-8">
@@ -616,34 +634,10 @@ const ProfileDetails = () => {
                 </div>
               </div>
             </div>
-            <div className="google-add"><img src={profilepics.googleadd} alt="" /></div>
+            {!isMobile && <div className="google-add"><img src={profilepics.googleadd} alt="" /></div>}
           </div>
         </div>
       </div>
-
-      {/* ── Pic Request Modal ──────────────────────────────────────────────────── */}
-      {showPicRequestModal && (
-        <div style={overlayStyle} onClick={() => setShowPicRequestModal(false)}>
-          <div style={modalBoxStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={modalHeaderStyle}>
-              <h5 style={{ margin: 0 }}>Request Unlock Photos</h5>
-              <button onClick={() => setShowPicRequestModal(false)} style={closeBtnStyle}>&times;</button>
-            </div>
-            <div style={{ padding: '20px' }}>
-              <p>Sending Gallery Request will deduct <strong>1 credit</strong> from your package.</p>
-              {localStorage.getItem('isLoggedIn') === 'true' ? (
-                <div className="viewbtn">
-                  <a href="#" onClick={(e) => { e.preventDefault(); setShowPicRequestModal(false); alert('Request sent successfully!'); }}>
-                    Send Request
-                  </a>
-                </div>
-              ) : (
-                <div className="viewbtn"><a href="/login">Login to Send Request</a></div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Contact Details Modal ──────────────────────────────────────────────── */}
       {showContactDetailsModal && (
@@ -677,6 +671,18 @@ const ProfileDetails = () => {
                     <div style={{ background: '#fdecea', border: '1px solid #f44336', borderRadius: '6px', padding: '10px 14px', color: '#c62828', marginBottom: '12px', fontSize: '14px' }}>
                       <i className="fas fa-times-circle" style={{ marginRight: '6px' }}></i>
                       {contactError}
+                      {/* Hidden-contact rule: one-tap link to fix it in Profile Security */}
+                      {contactErrorReason === 'contact_hidden' && (
+                        <div style={{ marginTop: '12px' }}>
+                          <a
+                            href="/profilesecurity"
+                            onClick={(e) => { e.preventDefault(); setShowContactDetailsModal(false); navigate('/profilesecurity'); }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 16px', background: '#a84040', color: '#fff', borderRadius: '6px', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}
+                          >
+                            <i className="fas fa-shield-alt"></i> Go to Profile Security
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="viewbtn">

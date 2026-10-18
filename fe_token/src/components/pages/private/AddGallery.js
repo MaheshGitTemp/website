@@ -19,7 +19,8 @@ const AddGallery = () => {
   const [getGallery, setGetGallery] = useState([]);
   const [imgcount, setimgcount] = useState(0)
   const [trigger, setTrigger] = useState(false)
-  
+  const [settingProfileId, setSettingProfileId] = useState(null) // which photo is being set as profile
+
   const loggedInUserId = localStorage.getItem("userId");
 
   useEffect(() => { 
@@ -139,6 +140,7 @@ const AddGallery = () => {
   };
 
   const makeProfile = async (imgid) => { 
+    setSettingProfileId(imgid); // show loader on the clicked photo's button
     try {
       await updateProfileStatus(imgid);
       setTrigger(!trigger);  // Refresh gallery to show updated profile status
@@ -146,6 +148,9 @@ const AddGallery = () => {
     catch(error) {
       console.error("Error updating profile status:", error);
       alert("Failed to set profile picture.");
+    }
+    finally {
+      setSettingProfileId(null); // hide loader regardless of outcome
     }
   }
 
@@ -263,6 +268,29 @@ const AddGallery = () => {
                                   <i className="fas fa-star"></i> Profile
                                 </span>
                               )}
+
+                              {/* Approval status badge — shown on the owner's own
+                                  management page so they know a photo is not yet
+                                  public. Approved photos get no extra badge. */}
+                              {file.status && file.status !== 'approved' && (
+                                <span
+                                  style={{
+                                    position: 'absolute',
+                                    top: file.isprofile ? '34px' : '8px',
+                                    left: '8px',
+                                    zIndex: 10,
+                                    fontSize: '10px',
+                                    padding: '3px 8px',
+                                    borderRadius: '4px',
+                                    color: '#fff',
+                                    fontWeight: 'bold',
+                                    background: file.status === 'rejected' ? '#a84040' : '#e0a800',
+                                  }}
+                                >
+                                  <i className={file.status === 'rejected' ? 'fas fa-times-circle' : 'fas fa-clock'}></i>{' '}
+                                  {file.status === 'rejected' ? 'Rejected' : 'Pending approval'}
+                                </span>
+                              )}
                               
                               {/* ✅ Delete Button for Existing Images */}
                               {!file.isprofile && (
@@ -332,10 +360,17 @@ const AddGallery = () => {
                                   type="button"
                                   className={`btn ${file.isprofile ? 'btn-success' : 'btn-primary'} btn-sm`}
                                   onClick={() => makeProfile(file.id)}
-                                  disabled={file.isprofile}
+                                  disabled={file.isprofile || settingProfileId === file.id}
                                   style={{ fontSize: '11px', padding: '4px 10px' }}
                                 >
-                                  {file.isprofile ? "✓ Current" : "Set Profile"}
+                                  {settingProfileId === file.id ? (
+                                    <>
+                                      <i className="fas fa-spinner fa-spin" style={{ marginRight: '5px' }}></i>
+                                      Updating...
+                                    </>
+                                  ) : (
+                                    file.isprofile ? "✓ Current" : "Set Profile"
+                                  )}
                                 </button>
                                 
                                 {/* Delete Button (Mobile-friendly text version) */}

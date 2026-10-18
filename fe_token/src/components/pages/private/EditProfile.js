@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 
 import api from '../../../utils/api' // <-- updated import
-import { imageUrl } from '../../../utils/imageUrl';
+import { imageUrl, approvedProfileImage } from '../../../utils/imageUrl';
 import { Link } from 'react-router-dom'
 import Profiles from '../../templates/ImagesLoader'
 import Sidebar from './templates/Sidebar'
@@ -355,7 +355,7 @@ const EditProfile = () => {
 
                         {getGallery.length > 0 ? (
                           (() => {
-                            const profileFile = getGallery.find(file => file.isprofile);
+                            const profileFile = approvedProfileImage(getGallery);
                             return profileFile ? (
                               <img
                                 // src={profileFile.imagepath}

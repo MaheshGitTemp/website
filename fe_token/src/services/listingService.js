@@ -1,36 +1,42 @@
- 
 // src/services/listingService.js
+//
+// NOTE (security hardening): /getAllUsers, /getPublicProfile and /GetUserGallery
+// now require authentication on the backend (they previously leaked the member
+// directory and private galleries to anonymous callers, bypassing the hide_*
+// privacy flags). All calls therefore go through the shared credentialed `api`
+// instance, which sends the HttpOnly auth cookie and runs the 401 -> refresh ->
+// retry interceptor. For a genuinely logged-out visitor these endpoints return
+// 401 and the interceptor redirects to /login, which is the intended behavior
+// now that the data is protected.
+//
+// The getPublicProfile / getPublicGallery names are kept for backward
+// compatibility with existing imports (e.g. ProfileDetails.js); they no longer
+// use a credential-less client.
 import api from '../utils/api';
-import axios from 'axios';
 
-// ── Public axios instance — no Authorization header ───────────────────────────
-const publicApi = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL,
-  headers: { 'Content-Type': 'application/json' }
-});
-
-// PUBLIC — GET /api/getAllUsers (no token)
+// GET /api/getAllUsers (auth required)
 export const getAllUsers = async (page, limit, gender = null) => {
   const genderQuery = gender ? `&gender=${encodeURIComponent(gender)}` : '';
-  return await publicApi.get(`/getAllUsers?page=${page}&limit=${limit}${genderQuery}`);
+  return await api.get(`/getAllUsers?page=${page}&limit=${limit}${genderQuery}`);
 };
 
-// PUBLIC — POST /api/getPublicProfile (no token)
+// POST /api/getPublicProfile (auth required)
 export const getPublicProfile = async (uid) => {
-  return await publicApi.post('/getPublicProfile', { uid });
+  return await api.post('/getPublicProfile', { uid });
 };
 
-// PROTECTED — POST /api/Fetchlistdata (token required)
+// POST /api/Fetchlistdata (auth required)
 export const searchUsers = async (filters, page, limit) => {
   return await api.post('/Fetchlistdata', { ...filters, page, limit });
 };
 
-// PROTECTED — POST /api/GetUserGallery (token required)
+// POST /api/GetUserGallery (auth required)
 export const getUserGallery = async (uid) => {
   return await api.post('/GetUserGallery', { uid });
 };
 
-// PUBLIC — GET gallery without token for listing page profile pics
+// Backward-compatible alias — kept so existing imports keep working.
+// Routes through the credentialed instance like every other call above.
 export const getPublicGallery = async (uid) => {
-  return await publicApi.post('/GetUserGallery', { uid });
+  return await api.post('/GetUserGallery', { uid });
 };

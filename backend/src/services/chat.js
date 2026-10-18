@@ -223,7 +223,7 @@ const getInbox = async (userId) => {
 -- Other user profile picture (Use thumbnail for faster chat loading!)
 (SELECT COALESCE(g.imagepath_thumb, g.imagepath) FROM usergallery g
  WHERE g.uid = CASE WHEN c.user1_id = $1 THEN c.user2_id ELSE c.user1_id END
-   AND g.isprofile = true LIMIT 1) AS other_profile_pic
+   AND g.isprofile = true AND g.status = 'approved' LIMIT 1) AS other_profile_pic
 
              FROM conversations c
              JOIN users u1 ON u1.uid = c.user1_id

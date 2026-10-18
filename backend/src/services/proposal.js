@@ -37,10 +37,10 @@ const getNotifications = async (receiverId) => {
                 u.ufname, u.ulname, u.ugender,
                 -- ✅ Include profile pic directly — eliminates separate GetUserGallery call
                 (SELECT g.imagepath_thumb FROM usergallery g 
-                 WHERE g.uid = p.sender_id AND g.isprofile = true 
+                 WHERE g.uid = p.sender_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS sender_pic_thumb,
                 (SELECT g.imagepath FROM usergallery g 
-                 WHERE g.uid = p.sender_id AND g.isprofile = true 
+                 WHERE g.uid = p.sender_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS sender_pic
              FROM proposals p
              JOIN users u ON u.uid = p.sender_id
@@ -171,10 +171,10 @@ const getSentProposals = async (senderId) => {
                 u.ufname, u.ulname, u.ugender, u.ucaste, u.upresentloc, u.udob,
                 -- ✅ Include profile pic directly — eliminates separate GetUserGallery call
                 (SELECT g.imagepath_thumb FROM usergallery g 
-                 WHERE g.uid = p.receiver_id AND g.isprofile = true 
+                 WHERE g.uid = p.receiver_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS receiver_pic_thumb,
                 (SELECT g.imagepath FROM usergallery g 
-                 WHERE g.uid = p.receiver_id AND g.isprofile = true 
+                 WHERE g.uid = p.receiver_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS receiver_pic
              FROM proposals p
              JOIN users u ON u.uid = p.receiver_id
@@ -210,10 +210,10 @@ const getSenderNotifications = async (senderId) => {
                 u.udob,
                 -- ✅ Include profile pic directly — eliminates separate GetUserGallery call
                 (SELECT g.imagepath_thumb FROM usergallery g 
-                 WHERE g.uid = pr.receiver_id AND g.isprofile = true 
+                 WHERE g.uid = pr.receiver_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS receiver_pic_thumb,
                 (SELECT g.imagepath FROM usergallery g 
-                 WHERE g.uid = pr.receiver_id AND g.isprofile = true 
+                 WHERE g.uid = pr.receiver_id AND g.isprofile = true AND g.status = 'approved'
                  LIMIT 1) AS receiver_pic
              FROM proposal_responses pr
              JOIN users u ON u.uid = pr.receiver_id

@@ -22,7 +22,13 @@ app.use(cors({
 
 app.options('*', cors());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));  // ← ADD
+// Serve static files. Uploaded gallery images have unique, immutable filenames
+// (user_<id>_<timestamp>_<size>.<ext>), so they can be cached aggressively by
+// browsers/CDN for far fewer repeat requests. (#2 perf: long-lived caching)
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '365d',
+  immutable: true
+}));
 
 const routes = require('./routes');
 app.use('/api', routes);
