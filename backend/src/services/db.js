@@ -128,16 +128,36 @@ const GetUserById = async (data) => {
 }
 
 
+// Look up a user by ANY login identifier:
+//   • email            → matches uemail
+//   • mobile number    → matches uphone
+//   • Matrimony ID     → "MAT123" or a plain number → matches uid
 const GetUserDetails = async (data) => {
   try {
     const client2 = await pool.connect();
+
+    const raw = (data == null ? '' : String(data)).trim();
+    // Derive a numeric uid when the input looks like a Matrimony ID (MAT123) or
+    // a bare number; null otherwise so the uid branch is skipped safely.
+    const matMatch = raw.match(/^MAT\s*0*(\d+)$/i);
+    let uidCandidate = null;
+    if (matMatch) {
+      uidCandidate = parseInt(matMatch[1], 10);
+    } else if (/^\d+$/.test(raw) && raw.length <= 9) {
+      // short all-digit value → treat as a possible uid (long digit strings are
+      // phone numbers and are matched by uphone below).
+      uidCandidate = parseInt(raw, 10);
+    }
+
     const query = {
-      text: 'select * from users WHERE uemail = $1',
-      values: [data],
+      text: `SELECT * FROM users
+               WHERE uemail = $1
+                  OR uphone = $1
+                  OR ($2::int IS NOT NULL AND uid = $2::int)`,
+      values: [raw, Number.isFinite(uidCandidate) ? uidCandidate : null],
     };
     const res = await client2.query(query);
-    // Close the connection
-    client2.release(); // Use release() instead of end() to return the client to the pool
+    client2.release(); // return the client to the pool
     return res.rows;
   } catch (error) {
     console.error('Error while getting data:', error);

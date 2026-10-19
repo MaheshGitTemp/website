@@ -26,7 +26,10 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const data    = req.body;
-    const userobj = await prepareDBData.GetUserDetails(data.uemail);
+    // Identifier can be an email, mobile number, or Matrimony ID (MAT123).
+    // Frontend still sends it in the `uemail` field; fall back to `identifier`.
+    const identifier = data.uemail != null ? data.uemail : data.identifier;
+    const userobj = await prepareDBData.GetUserDetails(identifier);
 
     if (!userobj || userobj.length === 0) {
       return res.status(200).json({ status: 'Failure', result: 'Data Does not Exists.' });
@@ -56,9 +59,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Password is the only credential check — the identifier already selected
+    // the correct user (by email / mobile / Matrimony ID). The old email-equality
+    // guard was removed because it broke mobile / MAT-ID logins.
+    // NOTE: return 200 (not 401) for a wrong password. A wrong password is an
+    // expected login outcome, not an expired session — returning 401 here caused
+    // the api.js refresh interceptor to swallow it and redirect, so the error
+    // message never reached the login form.
     const result = await verifyPassword(data.upassword, userobj[0].upassword);
-    if (!result.ok || data.uemail !== userobj[0].uemail) {
-      return res.status(401).json({ status: 'Failure', result: 'Invalid Credentials.' });
+    if (!result.ok) {
+      return res.status(200).json({ status: 'Failure', result: 'Invalid Credentials.' });
     }
 
     // Lazy migration: on a successful legacy (AES) match, re-hash the submitted
