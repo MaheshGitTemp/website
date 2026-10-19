@@ -64,7 +64,7 @@ const padams = ["1", "2", "3", "4"];
 const inrOptions = [{ label: "Thousand" }, { label: "Lakhs" }, { label: "Crores" }]
 const diet = ["Vegeterian", "Eggitarian", "Non-vegetarian"];
 const habitsOptions = ["Never", "Occasionally", "Socially", "Regularly"]
-const cities = jsonArr.districtData ? jsonArr.districtData.map(res => res.District) : [];
+const cities = jsonArr.districtData ? jsonArr.districtData.map(res => res.districtlabel) : [];
 // ["Hyderabad","Siddipet","Karimnagar","Sircilla","Vemulawada"];
 const jobCities = jsonArr.jobLocationsData ? jsonArr.jobLocationsData.map(res => res.location) : [];
 // ["Hyderabad","Bangalore","Pune","Chennai","Mumbai","Delhi","Kolkata","USA","UK","Canada","Other"];

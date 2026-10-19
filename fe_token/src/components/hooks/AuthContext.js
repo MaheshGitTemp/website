@@ -91,14 +91,23 @@ useEffect(() => {
         localStorage.setItem('userId',     String(userId));
         localStorage.setItem('userGender', userGender || '');
         localStorage.setItem('isLoggedIn', 'true');
+        return { success: true };
       } else {
-        setLoginuser('Enter valid credentials');
+        // Failed login: clear auth state. loginuser MUST be null (not a message
+        // string) — the Header shows the logged-in menu whenever loginuser is
+        // truthy, so a message string here wrongly rendered the "Me" menu.
+        setLoginuser(null);
         setIsLoggedIn(false);
+        localStorage.setItem('isLoggedIn', 'false');
+        // Surface the backend's message (e.g. "Invalid Credentials.") to the caller.
+        return { success: false, message: response.data.result || 'Invalid credentials.' };
       }
     } catch (error) {
       console.error('Login error:', error);
-      setLoginuser('Enter valid credentials');
+      setLoginuser(null);
       setIsLoggedIn(false);
+      localStorage.setItem('isLoggedIn', 'false');
+      return { success: false, message: 'Invalid credentials.' };
     }
   };
 

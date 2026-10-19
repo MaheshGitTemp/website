@@ -40,8 +40,8 @@ useEffect(() => {
 const loginHandler = async (e) => {
   e.preventDefault();
   try {
-    const response = await login(userEmail, userPassword);
-    if (localStorage.getItem('isLoggedIn') === 'true') {
+    const result = await login(userEmail, userPassword);
+    if (result && result.success) {
       showToast({
         title:       'Welcome Back! 👋',
         description: 'You have successfully logged in.',
@@ -51,7 +51,7 @@ const loginHandler = async (e) => {
     } else {
       showToast({
         title:       'Login Failed',
-        description: 'Invalid email or password. Please check your credentials.',
+        description: (result && result.message) || 'Invalid credentials. Please check your Email / Mobile / Matrimony ID and password.',
         type:        'error'
       });
     }
@@ -112,8 +112,8 @@ const loginHandler = async (e) => {
           <h3>User Login</h3>
           <form onSubmit={loginHandler}>
             <div className="input-group">
-              <label className="input-group-append">Email</label>
-              <input type="text" name="email" placeholder="Email" className="form-control"  onChange={(e)=>setUserEmail(e.target.value)}/>
+              <label className="input-group-append">Email / Mobile / Matrimony ID</label>
+              <input type="text" name="identifier" placeholder="Email, Mobile or Matrimony ID (e.g. MAT123)" className="form-control" onChange={(e)=>setUserEmail(e.target.value)}/>
             </div>
             {/* <div className="input-group">
               <label className="input-group-append">Password <span><a href="#">Forgot password?</a></span></label>

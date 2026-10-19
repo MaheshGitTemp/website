@@ -443,7 +443,7 @@ const Signup = (props) => {
                     <label style={ui.label}>Height</label>
                     <select name="uheight" style={ui.input(errors.uheight)}>
                       <option>Select Height</option>
-                      {jsonArr.heightData.map((res, i) => <option key={i} value={res.height}>{res.height}</option>)}
+                      {jsonArr.heightData.map((res, i) => <option key={i} value={res.height}>{res.heightlabel}</option>)}
                     </select>
                     {errors.uheight && <span style={ui.errorText}>{errors.uheight}</span>}
                   </div>
@@ -452,7 +452,7 @@ const Signup = (props) => {
                     <label style={ui.label}>Caste</label>
                     <select name="ucaste" style={ui.input(errors.ucaste)}>
                       <option>Select Caste</option>
-                      {jsonArr.casteData.map((res, i) => <option key={i} value={res.caste}>{res.caste}</option>)}
+                      {jsonArr.casteData.map((res, i) => <option key={i} value={res.caste}>{res.castelabel}</option>)}
                     </select>
                     {errors.ucaste && <span style={ui.errorText}>{errors.ucaste}</span>}
                   </div>
@@ -491,7 +491,7 @@ const Signup = (props) => {
                     <label style={ui.label}>Place of birth</label>
                     <select name="upob" style={ui.input(errors.upob)}>
                       <option>Select birth place</option>
-                      {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.District}</option>)}
+                      {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.districtlabel}</option>)}
                     </select>
                     {errors.upob && <span style={ui.errorText}>{errors.upob}</span>}
                   </div>
@@ -500,7 +500,7 @@ const Signup = (props) => {
 
               {/* ── Location ──────────────────────────────────────────── */}
               <div style={ui.section}>
-                <h5 style={ui.sectionTitle}>Location</h5>
+                <h5 style={ui.sectionTitle}>Job Location</h5>
                 <div style={ui.grid}>
                   <div style={ui.col('50%')}>
                     <label style={ui.label}>Country</label>
@@ -520,7 +520,7 @@ const Signup = (props) => {
                     <label style={ui.label}>City/Current Location</label>
                     <select name="upresentloc" style={ui.input(errors.upresentloc)}>
                       <option>Select District</option>
-                      {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.District}</option>)}
+                      {jsonArr.districtData.map((res, i) => <option key={i} value={res.districtlabel}>{res.districtlabel}</option>)}
                     </select>
                     {errors.upresentloc && <span style={ui.errorText}>{errors.upresentloc}</span>}
                   </div>
