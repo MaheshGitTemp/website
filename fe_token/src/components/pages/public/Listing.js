@@ -644,7 +644,7 @@ useEffect(() => {
                       <label class="input-group-append">Height</label>
                       <select name="heightFrom" class="form-control" id="height" >
                          <option value="">-- No Preference --</option>
-                        {jsonArr.heightData.map((res, i) => <option key={i} value={res.height}>{res.height}</option>)}
+                        {jsonArr.heightData.map((res, i) => <option key={i} value={res.heightlabel}>{res.heightlabel}</option>)}
                       </select>
                     </div>
                     <div class="input-group checkbox">
@@ -662,14 +662,14 @@ useEffect(() => {
                       <label class="input-group-append">City</label>
                       <select name="city" class="form-control" id="city"> 
                          <option value="">-- No Preference --</option>
-                        {jsonArr.districtData.map((res, i) => <option key={i} value={res.District}>{res.District}</option>)}
+                        {jsonArr.districtData.map((res, i) => <option key={i} value={res.districtlabel}>{res.districtlabel}</option>)}
                       </select>
                     </div>
                     <div class="input-group">
                       <label class="input-group-append">Caste</label>
                        <select name="caste" class="form-control" id="caste"> 
                          <option value="">-- No Preference --</option>
-                       {jsonArr.casteData.map((res, i) => <option key={i} value={res.caste}>{res.caste}</option>)}
+                       {jsonArr.casteData.map((res, i) => <option key={i} value={res.castelabel}>{res.castelabel}</option>)}
                       </select>
                       
                     </div>

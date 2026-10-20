@@ -68,11 +68,11 @@ const cities = jsonArr.districtData ? jsonArr.districtData.map(res => res.distri
 // ["Hyderabad","Siddipet","Karimnagar","Sircilla","Vemulawada"];
 const jobCities = jsonArr.jobLocationsData ? jsonArr.jobLocationsData.map(res => res.location) : [];
 // ["Hyderabad","Bangalore","Pune","Chennai","Mumbai","Delhi","Kolkata","USA","UK","Canada","Other"];
-const heights = jsonArr.heightData ? jsonArr.heightData.map(res => res.height) : [];
+const heights = jsonArr.heightData ? jsonArr.heightData.map(res => res.heightlabel) : [];
 // ["5","5-1","5-2"];
 const genders = ["Male", "Female"]
 // const castes =["Goldsmith","Carpenter","Kamma","Kapu","Brahmin"];
-const castes = jsonArr.casteData ? jsonArr.casteData.map(res => res.caste) : [];
+const castes = jsonArr.casteData ? jsonArr.casteData.map(res => res.castelabel) : [];
 const nakshtras = jsonArr.nakshatrasData ? jsonArr.nakshatrasData.map(res => res.nakshatra) : [];
 // ["Ardra","Shathabhisha","Swathi","Anuradha","Vishaka"]
 const rasi = jsonArr.rasiData ? jsonArr.rasiData.map(res => res.rasi) : [];
