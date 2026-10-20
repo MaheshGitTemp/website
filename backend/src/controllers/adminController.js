@@ -218,7 +218,7 @@ exports.deleteUser = async (req, res) => {
   const uid = parseUid(req.params?.uid);
   if (!uid) return res.status(200).json({ status: 'Failure', result: 'Invalid uid.' });
   try {
-    const result = await adminService.deleteUserCascade(uid);
+    const result = await adminService.deleteUserCascade(uid, req.admin?.adminId);
     return res.status(200).json({ status: 'Success', data: result });
   } catch (err) {
     console.error(`adminController.deleteUser error (uid ${uid}):`, err.message);

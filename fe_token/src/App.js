@@ -21,6 +21,15 @@ import ProtectedRoute from "./components/hooks/ProtectedRoute";
 import CloseAccount from "./components/pages/private/CloseAccount";
  import ForgotPassword from "./components/pages/public/ForgotPassword";
    import Home from './components/pages/public/Home';
+// Admin panel — separate shell (own routes, own axios, no public Header/Footer)
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminLogin from "./components/admin/AdminLogin";
+import AdminDashboard from "./components/admin/AdminDashboard";
+import AdminUsers from "./components/admin/AdminUsers";
+import AdminPhotos from "./components/admin/AdminPhotos";
+import AdminMessagesList from "./components/admin/AdminMessagesList";
+import Impersonate from "./components/admin/Impersonate";
 
 function App() {
   const authcontext=useContext(AuthContext)
@@ -48,6 +57,18 @@ function App() {
           <Route path="/messages" element={<><Header/><Messages /><Footer/></>} /> 
 
 <Route path="/forgotpassword" element={<><Header/><ForgotPassword /><Footer/></>} />
+
+          {/* Admin — separate shell, no public Header/Footer */}
+          <Route path="/adminhub/matrimony/login" element={<AdminLogin />} />
+          <Route path="/adminhub/matrimony" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
+            <Route path="dashboard"    element={<AdminDashboard />} />
+            <Route path="users"        element={<AdminUsers />} />
+            <Route path="photos"       element={<AdminPhotos />} />
+            <Route path="messageslist" element={<AdminMessagesList />} />
+          </Route>
+
+          {/* Public impersonation handler — mints user session from a one-time token */}
+          <Route path="/impersonate" element={<Impersonate />} />
           </Routes>
     </Router>
    </ToastProvider>  

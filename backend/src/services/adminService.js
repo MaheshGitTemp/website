@@ -330,7 +330,7 @@ async function writeAudit({ adminId, action, targetUid, details }) {
 // the final DELETE FROM users. usergallery.uid and userdetails.uid have NO FK,
 // so they are deleted explicitly inside the transaction. Image files are removed
 // best-effort (failures logged, NOT fatal, NOT rolled back).
-async function deleteUserCascade(uid) {
+async function deleteUserCascade(uid, adminId) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -359,9 +359,9 @@ async function deleteUserCascade(uid) {
     await client.query(`DELETE FROM public.users WHERE uid = $1`, [uid]);
 
     await client.query(
-      `INSERT INTO public.admin_audit_log (action, target_uid, details)
-            VALUES ($1, $2, $3)`,
-      ['delete_user', uid, JSON.stringify({ galleryDeleted: gallery.rows.length })]
+      `INSERT INTO public.admin_audit_log (admin_id, action, target_uid, details)
+            VALUES ($1, $2, $3, $4)`,
+      [adminId ?? null, 'delete_user', uid, JSON.stringify({ galleryDeleted: gallery.rows.length })]
     );
 
     await client.query('COMMIT');
