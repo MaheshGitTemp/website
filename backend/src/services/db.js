@@ -84,21 +84,21 @@ const GetAllUsers = async (page = 1, limit = 20, gender = null) => {
 
       if (genderParam) {
         const dataQuery = {
-          text: `SELECT a.*, ${profileImageSql} FROM users a WHERE a.ugender = $1 ORDER BY a.uid LIMIT $2 OFFSET $3`,
+          text: `SELECT a.*, ${profileImageSql} FROM users a WHERE a.ugender = $1 AND a.profile_status = 'approved' ORDER BY a.uid LIMIT $2 OFFSET $3`,
           values: [genderParam, limit, offset]
         };
         const countQuery = {
-          text: 'SELECT COUNT(*) AS total FROM users WHERE ugender = $1',
+          text: "SELECT COUNT(*) AS total FROM users WHERE ugender = $1 AND profile_status = 'approved'",
           values: [genderParam]
         };
         const [dataRes, countRes] = await Promise.all([client.query(dataQuery), client.query(countQuery)]);
         return { rows: dataRes.rows, total: parseInt(countRes.rows[0].total, 10) };
       } else {
         const dataQuery = {
-          text: `SELECT a.*, ${profileImageSql} FROM users a ORDER BY a.uid LIMIT $1 OFFSET $2`,
+          text: `SELECT a.*, ${profileImageSql} FROM users a WHERE a.profile_status = 'approved' ORDER BY a.uid LIMIT $1 OFFSET $2`,
           values: [limit, offset]
         };
-        const countQuery = { text: 'SELECT COUNT(*) AS total FROM users' };
+        const countQuery = { text: "SELECT COUNT(*) AS total FROM users WHERE profile_status = 'approved'" };
         const [dataRes, countRes] = await Promise.all([client.query(dataQuery), client.query(countQuery)]);
         return { rows: dataRes.rows, total: parseInt(countRes.rows[0].total, 10) };
       }
@@ -442,7 +442,7 @@ const Fetchlistdata = async ({
     const l = Number(limit) || 20;
     const offset = (p - 1) * l;
 
-    let where = ' WHERE 1=1';
+    let where = " WHERE 1=1 AND a.profile_status = 'approved'";
     const params = [];
 
     // Gender filter - normalize
@@ -577,8 +577,8 @@ const dataText = `
     a.upresentloc, a.ucaste,
     b.about, b.degree, b.jobcity, b.maritalstatus, b.familyresidence,
     -- ✅ ADDED: Fetch profile images with privacy check
-    (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true LIMIT 1) AS profile_image,
-    (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath_thumb END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true LIMIT 1) AS profile_image_thumb
+    (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true AND g.status = 'approved' LIMIT 1) AS profile_image,
+    (SELECT CASE WHEN a.hide_picture = true THEN NULL ELSE g.imagepath_thumb END FROM usergallery g WHERE g.uid = a.uid AND g.isprofile = true AND g.status = 'approved' LIMIT 1) AS profile_image_thumb
   FROM users as a 
   LEFT JOIN userdetails as b on a.uid = b.uid
   ${where} 

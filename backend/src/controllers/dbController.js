@@ -1,5 +1,6 @@
  
 const prepareDBData = require('../services/db');
+const pool = require('../services/pool');
 const { convertCredentials, verifyPassword, hashPassword } = require('../services/passwordfunction');
 const {
   generateAccessToken,
@@ -659,5 +660,91 @@ exports.GetUserGallery = async (req, res) => {
   } catch (error) {
     console.error('GetUserGallery controller error:', error);
     res.status(500).json({ status: 'Failure', result: error.message });
+  }
+};
+
+// ─── Impersonation Exchange (shadow login) ────────────────────────────────────
+// POST /api/impersonate/exchange  — PUBLIC, token-gated (no auth cookie needed).
+// Exchanges a single-use, short-lived admin-issued impersonation token for REAL
+// user access/refresh cookies, so an admin clicking a MAT-id opens that user's
+// session in a new tab. The admin creates the token via POST /api/adminhub/impersonate.
+//
+// SAME-BROWSER COOKIE CAVEAT: user cookies (accessToken/refreshToken) and the
+// admin cookie (adminToken) have different names and coexist, so this does NOT
+// clear the admin session. BUT cookies are per-origin (not per-tab): if the
+// admin already had a personal USER session in this browser, this exchange
+// OVERWRITES those user cookies in every tab of the origin. That is expected for
+// the admin workflow — there is no per-tab isolation.
+exports.impersonateExchange = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const token = req.body ? req.body.token : undefined;
+
+    // Request-boundary validation: token must be a non-empty string that fits
+    // the varchar(128) column. Anything else is an expected bad input → 200 Failure.
+    if (typeof token !== 'string' || token.length < 1 || token.length > 128) {
+      return res.status(200).json({ status: 'Failure', result: 'Invalid or expired token.' });
+    }
+
+    // Look up the token row.
+    const tokenRes = await client.query(
+      'SELECT token, uid, used, expires_at FROM admin_impersonation_tokens WHERE token = $1',
+      [token]
+    );
+    const row = tokenRes.rows[0];
+    if (!row || row.used === true || new Date(row.expires_at) < new Date()) {
+      return res.status(200).json({ status: 'Failure', result: 'Invalid or expired token.' });
+    }
+
+    // Atomic single-use consume: `AND used = false` + RETURNING guarantees exactly
+    // one consumer even under a double-submit race.
+    const consumeRes = await client.query(
+      'UPDATE admin_impersonation_tokens SET used = true WHERE token = $1 AND used = false RETURNING uid',
+      [token]
+    );
+    if (consumeRes.rows.length === 0) {
+      return res.status(200).json({ status: 'Failure', result: 'Invalid or expired token.' });
+    }
+    const uid = consumeRes.rows[0].uid;
+
+    // Load the user. Mirror the user-login status guard exactly: Closed/Blocked
+    // are refused; Pending is an admin-only label with no auth effect (allowed).
+    const userRes = await client.query(
+      'SELECT uid, uemail, ugender, status FROM users WHERE uid = $1',
+      [uid]
+    );
+    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(200).json({ status: 'Failure', result: 'Invalid or expired token.' });
+    }
+    if (user.status === 'Closed' || user.status === 'Blocked') {
+      return res.status(200).json({ status: 'Failure', result: 'This account is not active. Please contact support.' });
+    }
+
+    const tokenPayload = {
+      uid:     user.uid,
+      uemail:  user.uemail,
+      ugender: user.ugender
+    };
+
+    const accessToken  = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+
+    res.cookie('accessToken',  accessToken,  accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    return res.status(200).json({
+      status: 'Success',
+      result: 'Login Successfully.',
+      data: {
+        userId:     user.uid,
+        userGender: user.ugender
+      }
+    });
+  } catch (error) {
+    console.error('impersonateExchange error:', error);
+    res.status(500).json({ status: 'Failure', result: error.message });
+  } finally {
+    client.release();
   }
 };

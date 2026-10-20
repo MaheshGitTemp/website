@@ -19,6 +19,9 @@ router.post('/login',    mydbController.login);
 router.post('/register', mydbController.register);
 router.post('/refresh',  myController.refresh);
 router.post('/logout',   myController.logout);
+// Impersonation exchange (shadow login) — PUBLIC, token-gated. Mints USER cookies
+// from a single-use admin-issued token, so it lives on the user router (no auth).
+router.post('/impersonate/exchange', mydbController.impersonateExchange);
 
 // ─── Protected User APIs ──────────────────────────────────────────────────────
 router.get('/getAllUsers',       auth, mydbController.getAllUsers);
