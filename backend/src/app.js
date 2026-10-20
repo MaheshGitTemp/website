@@ -31,6 +31,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 const routes = require('./routes');
+// Mount the admin router BEFORE the user router. Express matches mounted routers
+// in registration order (not by prefix specificity), so the more specific
+// /api/adminhub prefix must come first to avoid being shadowed by /api.
+app.use('/api/adminhub', require('./routes/adminRoutes'));
 app.use('/api', routes);
 
 const port = process.env.PORT || 9012;
