@@ -32,9 +32,9 @@ services:
       # CLIENT_ORIGIN: http://localhost:3000
       # TOKEN_SECRET: dileepltts_dev_secret_change_me
       # REFRESH_TOKEN_SECRET: dileepltts_refresh_secret_change_me
-      # EMAIL_USER: tempmailmahesh@gmail.com
-      # EMAIL_PASS: ydzluwrjuqtmxeui
-      # EMAIL_FROM: WedsMutual <tempmailmahesh@gmail.com>
+      # EMAIL_USER: telugusambandham@gmail.com
+      # EMAIL_PASS: your_gmail_app_password
+      # EMAIL_FROM: TeluguSambandham <telugusambandham@gmail.com>
       # PGHOST: db
       # PGPORT: 5432
       # PGUSER: postgres
@@ -43,9 +43,12 @@ services:
       ########################################
       # PRODUCTION SETTINGS
       ########################################
-      NODE_ENV: development
+      # All values come from the root .env (copy .env.example -> .env and fill in).
+      # Set NODE_ENV=production in .env so Secure/SameSite cookies engage, and
+      # CLIENT_ORIGIN to the real HTTPS site origin (CORS must match it exactly).
+      NODE_ENV: ${NODE_ENV}
       PORT: 9012
-      CLIENT_ORIGIN: http://201.18.192.223 # or https://yourdomain.com
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
       TOKEN_SECRET: ${TOKEN_SECRET}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
       ADMIN_TOKEN_SECRET: ${ADMIN_TOKEN_SECRET}
@@ -57,6 +60,9 @@ services:
       PGUSER: ${PGUSER}
       PGPASSWORD: ${PGPASSWORD}
       PGDATABASE: ${PGDATABASE}
+    volumes:
+      # Persist user-uploaded gallery images across container rebuilds.
+      - uploads:/app/src/public/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -64,7 +70,13 @@ services:
       - fullstack-net
 
   frontend:
-    build: ./fe_token
+    build:
+      context: ./fe_token
+      args:
+        # CRA inlines REACT_APP_* at BUILD time, so the API base URL must be
+        # passed as a build arg (runtime env has no effect on the static bundle).
+        # Set REACT_APP_API_BASE_URL in the root .env, e.g. https://telugusambandham.com/api
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL}
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -79,3 +91,4 @@ networks:
 
 volumes:
   pgdata:
+  uploads:

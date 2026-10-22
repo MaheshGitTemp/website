@@ -307,7 +307,7 @@ const Signup = (props) => {
           setPendingFormData(null);
           setOtpValue('');
           showToast({
-            title:       '🎉 Welcome to WedsMutual!',
+            title:       '🎉 Welcome to TeluguSambandham!',
             description: 'Your account has been created successfully. Please login to continue.',
             type:        'success',
             duration:    5000

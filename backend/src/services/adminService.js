@@ -258,7 +258,7 @@ function flaggedSelectSql() {
       JOIN public.users sa ON sa.uid = f.sender_id
       JOIN public.users ra ON ra.uid = f.receiver_id
      WHERE f.unanswered_count > 10
-     ORDER BY f.unanswered_count DESC, f.last_message_time DESC`;
+     ORDER BY f.unanswered_count DESC, f.last_msg_time DESC`;
 }
 
 function flaggedCountSql() {

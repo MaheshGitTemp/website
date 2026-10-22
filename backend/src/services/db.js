@@ -11,53 +11,56 @@ const register = async (dataToSave) => {
     if (validateData.length > 0) {
       return false;
     } else {
-
       let encryptedPassword = await hashPassword(dataToSave.upassword);
       dataToSave.upassword = encryptedPassword;
-      saveObjectsToDatabase(dataToSave);
+      // await the insert so a DB failure propagates to the caller instead of
+      // being silently fire-and-forgotten (which made failed signups look OK).
+      await saveObjectsToDatabase(dataToSave);
       return true;
     }
   } catch (e) {
-    console.log(e);
+    console.error('register error:', e);
+    throw e; // let the controller return a real 500 instead of a false success
   }
 }
 
 async function ValidateUser(dataToSave) {
+  const client1 = await pool.connect();
   try {
-    const client1 = await pool.connect();
     const query = {
-      // text: 'select * from users WHERE uemail = $1',
       text: 'select * from users WHERE uemail = $1 OR uphone = $2',
       values: [dataToSave.uemail, dataToSave.uphone],
     };
     const res = await client1.query(query);
-    // Close the connection
-    client1.release(); // Use release() instead of end() to return the client to the pool
     return res.rows;
-    console.log('Object saved to the database successfully.');
   } catch (error) {
-    console.error('Error while saving objects to the database:', error);
+    console.error('ValidateUser error:', error);
+    throw error;
+  } finally {
+    client1.release();
   }
 }
 
 //after validateUser() returns 0 rows then below data inserted in db.
 async function saveObjectsToDatabase(obj) {
+  const client = await pool.connect();
   try {
-    const client = await pool.connect();
     const query = 'INSERT INTO users (relation, ucreated, ufname, ulname, udob, utob, ugender,  upob, upresentloc, uphone, uheight, ucaste, uemail, upassword, ujob, upackage,ucountry,ustate) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17,$18)  RETURNING uid  ';
     const values = [obj.relation, obj.ucreated, obj.ufname, obj.ulname, obj.udob, obj.utob, obj.ugender, obj.upob, obj.upresentloc, obj.uphone, obj.uheight, obj.ucaste, obj.uemail, obj.upassword, obj.ujob, obj.upackage, obj.ucountry, obj.ustate];
-    const result =await client.query(query, values);
+    const result = await client.query(query, values);
     const newUid = result.rows[0].uid;
 
     // Insert into userdetails table using the generated uid
     const queryDetails = `
       INSERT INTO userdetails (uid,maritalstatus) VALUES ($1,$2)
     `;
-    await client.query(queryDetails, [newUid,"Single"]);
-    client.release();
-    console.log('Object saved to the database successfully.');
+    await client.query(queryDetails, [newUid, "Single"]);
+    return newUid;
   } catch (error) {
-    console.error('Error while saving objects to the database:', error);
+    console.error('saveObjectsToDatabase error:', error);
+    throw error; // propagate so register() fails loudly
+  } finally {
+    client.release(); // always release, even on error (was leaking on throw)
   }
 }
 //end of Registration.
@@ -182,12 +185,13 @@ const SaveUserGallery = async (list) => {
       obj.isprofile, 
       obj.userid, 
       obj.updateddate,
-      'pending'
+      'pending',
+      true   // watermarked: new uploads are watermarked by imageService at upload
     ]);
 
-    // ✅ Insert all columns (incl. approval status) into the database
+    // ✅ Insert all columns (incl. approval status + watermark flag) into the database
     const query = format(
-      'INSERT INTO usergallery ("imagepath", "imagepath_medium", "imagepath_thumb", "isprofile", "uid", "updateddate", "status") VALUES %L RETURNING *', 
+      'INSERT INTO usergallery ("imagepath", "imagepath_medium", "imagepath_thumb", "isprofile", "uid", "updateddate", "status", "watermarked") VALUES %L RETURNING *', 
       values
     );
 

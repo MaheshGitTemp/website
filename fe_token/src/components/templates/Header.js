@@ -1,8 +1,8 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
 import '../../assets/css/style.css';
 import '../../assets/css/bootstrap.min.css';
-import '../../assets/css/bootstrap.css';
-import '../../assets/css/all.min.css';
+// Removed duplicate imports: bootstrap.css (same framework as bootstrap.min.css)
+// and a local all.min.css (FontAwesome is already loaded globally in index.js).
 import profiles from "../templates/ImagesLoader";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from '../hooks/AuthContext';

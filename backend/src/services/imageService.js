@@ -45,6 +45,54 @@ const getExtension = (base64String) => {
 //    (#1 storage: cap + compress the original instead of saving it untouched.)
 const ORIGINAL_MAX_DIM = 2000;
 
+// ── Watermark ─────────────────────────────────────────────────────────────────
+// A centered text watermark is BAKED into the medium + original images (not the
+// thumb — text is illegible at 300px). Because it's composited into the pixels,
+// it appears everywhere the photo is shown (home, matches/listing, profile
+// details, gallery, lightbox) and can't be removed via devtools or by opening
+// the raw file URL. Opacity 0.2 per requirement.
+const WATERMARK_TEXT    = 'verified profile · telugusambandham.com';
+const WATERMARK_OPACITY = 0.2;
+
+// Escape text for safe embedding inside the SVG overlay.
+const escapeXml = (s) => s.replace(/[<>&'"]/g, (c) => (
+  { '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]
+));
+
+// Build an SVG, sized to the target image, with the watermark text centered and
+// rotated slightly so it's harder to crop out. Font size scales with image width.
+const buildWatermarkSvg = (width, height) => {
+  const fontSize = Math.max(14, Math.round(width / 22)); // scales with image
+  const text = escapeXml(WATERMARK_TEXT);
+  return Buffer.from(
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+       <style>
+         .wm { fill: #ffffff; fill-opacity: ${WATERMARK_OPACITY};
+               font-family: Arial, Helvetica, sans-serif; font-weight: 700;
+               font-size: ${fontSize}px; paint-order: stroke;
+               stroke: #000000; stroke-opacity: ${WATERMARK_OPACITY * 0.5};
+               stroke-width: 1px; }
+       </style>
+       <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
+             transform="rotate(-30 ${width / 2} ${height / 2})" class="wm">${text}</text>
+     </svg>`
+  );
+};
+
+// Resize + rotate an input buffer to the given fit, then composite the watermark
+// (sized to the resulting image) and return a JPEG buffer at `quality`.
+// Used for medium and original (NOT thumb).
+const renderWatermarked = async (buffer, resizeOpts, quality) => {
+  // First pass: produce the resized image so we know its real dimensions.
+  const resized = await sharp(buffer).rotate().resize(resizeOpts.width, resizeOpts.height, resizeOpts.options).toBuffer();
+  const meta = await sharp(resized).metadata();
+  const svg = buildWatermarkSvg(meta.width, meta.height);
+  return sharp(resized)
+    .composite([{ input: svg, gravity: 'center' }])
+    .jpeg({ quality })
+    .toBuffer();
+};
+
 // ── Main function: process one image into 3 sizes ─────────────────────────────
 // Returns { original, medium, thumb } — all relative paths for DB storage.
 //
@@ -81,39 +129,35 @@ const processImage = async (base64Image, userId) => {
   };
 
   try {
-    // Generate all three sizes concurrently. Each sharp(buffer) pipeline decodes
-    // independently, but running them in parallel uses available cores and keeps
-    // total upload time close to the slowest single op rather than their sum.
-    await Promise.all([
-      // ── Original: capped to ORIGINAL_MAX_DIM, high-quality JPEG, EXIF stripped ──
-      sharp(buffer)
-        .rotate()                                  // apply EXIF orientation
-        .resize(ORIGINAL_MAX_DIM, ORIGINAL_MAX_DIM, {
-          fit: 'inside',
-          withoutEnlargement: true                 // never upscale smaller images
-        })
-        .jpeg({ quality: 85 })                     // near-lossless at normal viewing
-        .toFile(originalPath),
+    // Generate all three sizes concurrently. Original + medium get the baked-in
+    // watermark; thumb stays clean (watermark text is illegible at 300px).
+    const [originalBuf, mediumBuf, thumbBuf] = await Promise.all([
+      // ── Original: capped to ORIGINAL_MAX_DIM, watermarked, high-quality JPEG ──
+      renderWatermarked(
+        buffer,
+        { width: ORIGINAL_MAX_DIM, height: ORIGINAL_MAX_DIM, options: { fit: 'inside', withoutEnlargement: true } },
+        85
+      ),
 
-      // ── Medium (600×800, fit inside, no crop) ──────────────────────────────
+      // ── Medium (600×800, fit inside, no crop), watermarked ─────────────────
+      renderWatermarked(
+        buffer,
+        { width: SIZES.medium.width, height: SIZES.medium.height, options: { fit: 'inside', withoutEnlargement: true } },
+        80
+      ),
+
+      // ── Thumb (300×300, cover crop — square), NO watermark ─────────────────
       sharp(buffer)
         .rotate()
-        .resize(SIZES.medium.width, SIZES.medium.height, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .jpeg({ quality: 80 })
-        .toFile(mediumPath),
-
-      // ── Thumb (300×300, cover crop — square) ───────────────────────────────
-      sharp(buffer)
-        .rotate()
-        .resize(SIZES.thumb.width, SIZES.thumb.height, {
-          fit:      'cover',
-          position: 'top'
-        })
+        .resize(SIZES.thumb.width, SIZES.thumb.height, { fit: 'cover', position: 'top' })
         .jpeg({ quality: 70 })
-        .toFile(thumbPath),
+        .toBuffer(),
+    ]);
+
+    await Promise.all([
+      fs.promises.writeFile(originalPath, originalBuf),
+      fs.promises.writeFile(mediumPath, mediumBuf),
+      fs.promises.writeFile(thumbPath, thumbBuf),
     ]);
   } catch (err) {
     // Partial-failure cleanup: remove whatever was written so we don't leave
@@ -142,4 +186,13 @@ const deleteImageFiles = (imagepath, imagepath_medium, imagepath_thumb) => {
   });
 };
 
-module.exports = { processImage, deleteImageFiles };
+module.exports = {
+  processImage,
+  deleteImageFiles,
+  // exported for the one-off re-watermark script (scripts/watermarkExisting.js)
+  renderWatermarked,
+  buildWatermarkSvg,
+  UPLOAD_DIR,
+  ORIGINAL_MAX_DIM,
+  SIZES,
+};

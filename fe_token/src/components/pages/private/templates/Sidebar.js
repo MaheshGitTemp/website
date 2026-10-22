@@ -95,6 +95,9 @@ const Sidebar = () => {
   return (
     <>
     <div className="col-lg-4 col-md-4">
+      {/* Profile card (name, photo, MAT id, phone, email, city/state) —
+          hidden on mobile per request; shown on desktop. */}
+      {!isMobile && (
       <div className="profileDetails">
         <h3><span className="user-name">{userDetails.ufname || 'user'}</span>'s Profile</h3>
 
@@ -160,6 +163,7 @@ const Sidebar = () => {
           <p><i className="fas fa-map-marker-alt"></i>{userDetails.upresentloc ? userDetails.upresentloc : "Not Available"},{userDetails.ustate}</p>
         </div>
       </div>
+      )}
 
       <div className="editDetails" >
         {/* Mobile-only collapse/expand toggle for the menu */}

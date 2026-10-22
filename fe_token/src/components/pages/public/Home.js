@@ -201,6 +201,9 @@ const Home = () => {
             </div>
           </div>
 
+          {/* Quick Search is only for logged-in users (it searches protected
+              /profiles). Hidden for guests. */}
+          {isLoggedIn && (
           <RevealOnScroll className="slide-in-right" delay={300}>
             <div className="search-widget">
               <h3>Quick Search</h3>
@@ -231,6 +234,7 @@ const Home = () => {
               </form>
             </div>
           </RevealOnScroll>
+          )}
         </div>
       </section>
 

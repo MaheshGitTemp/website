@@ -13,10 +13,10 @@ const sendOtpEmail = async (toEmail, otp) => {
   const mailOptions = {
     from:    process.env.EMAIL_FROM,
     to:      toEmail,
-    subject: 'Your OTP for WedsMutual Registration',
+    subject: 'Your OTP for TeluguSambandham Registration',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-        <h2 style="color: #a84040; text-align: center;">WedsMutual</h2>
+        <h2 style="color: #a84040; text-align: center;">TeluguSambandham</h2>
         <h3 style="text-align: center;">Email Verification</h3>
         <p>Thank you for registering! Please use the OTP below to verify your email address.</p>
         <div style="background: #f8f9fa; border: 2px dashed #a84040; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">

@@ -10,6 +10,7 @@ import SignIn from './components/pages/public/SignIn';
 import Signup from './components/pages/public/Signup';
 import Footer from './components/templates/Footer';
 import Header from './components/templates/Header';
+import BottomNav from './components/templates/BottomNav';
 import AdvanceSearch from "./components/pages/public/AdvanceSearch";
 import Dashboard from "./components/pages/private/Dashboard";
 import EditProfile from "./components/pages/private/EditProfile";
@@ -70,6 +71,8 @@ function App() {
           {/* Public impersonation handler — mints user session from a one-time token */}
           <Route path="/impersonate" element={<Impersonate />} />
           </Routes>
+        {/* Mobile-only fixed bottom navigation (hidden on desktop + admin) */}
+        <BottomNav />
     </Router>
    </ToastProvider>  
     </AuthProvider></>
@@ -77,15 +80,3 @@ function App() {
 }
 
 export default App;
-// function App() {
-//   return (
-//     <AuthProvider> 
-//     <Header></Header>
-// {/* <SignIn></SignIn> */}
-//     <Signup></Signup>
-//     {/* <ProfileDetails></ProfileDetails> */}
-//     {/* <Listing></Listing> */}
-//     <Footer></Footer>
-//     </AuthProvider>
-//   );
-// }

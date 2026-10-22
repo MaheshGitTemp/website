@@ -10,7 +10,12 @@
 // password-reset tool. It never prints the hash or plaintext.
 // ─────────────────────────────────────────────────────────────────────────────
 
-require('dotenv').config();
+// The backend's .env lives at backend/src/.env (same file app.js uses). Load it
+// explicitly by absolute path so this script works regardless of the directory
+// it is run from (running from backend/ would otherwise find no .env and leave
+// PGPASSWORD undefined → "client password must be a string").
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, 'src', '.env') });
 
 async function main() {
   const [, , email, username, plainpassword, nameArg] = process.argv;
